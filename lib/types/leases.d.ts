@@ -1,7 +1,7 @@
 /** Session-sidecar read leases, durable denials, and per-turn control leases. */
 import { z } from 'zod';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import type { CallId } from '@deepseek-ai/dsh-llm';
+import type { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { SessionId } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ResolvedComputerUseConfig } from './config.ts';
@@ -65,7 +65,7 @@ export declare class ComputerLeaseManager {
     /** Wait for an already-composed storage-domain service to finish opening. */
     initialize(): Promise<void>;
     /** Ensure one Agent may read or control one exact running application. */
-    ensure(agent: Agent, app: ComputerAppIdentity, scope: 'read' | 'control', toolName: string, callId: CallId | undefined, signal: AbortSignal): Promise<ComputerLeaseSource>;
+    ensure(agent: Agent, app: ComputerAppIdentity, scope: 'read' | 'control', toolName: string, callId: ToolCallId | undefined, signal: AbortSignal): Promise<ComputerLeaseSource>;
     /** Forget process-local control grants when their Agent is disposed. */
     releaseAgent(agent: Agent): void;
     private ensureInteractive;

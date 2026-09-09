@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { CallId } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
@@ -161,7 +161,7 @@ export class ComputerLeaseManager {
     app: ComputerAppIdentity,
     scope: 'read' | 'control',
     toolName: string,
-    callId: CallId | undefined,
+    callId: ToolCallId | undefined,
     signal: AbortSignal,
   ): Promise<ComputerLeaseSource> {
     if (configuredAccess(this.config(), app.bundleId, scope)) return 'configured'
@@ -181,13 +181,14 @@ export class ComputerLeaseManager {
     app: ComputerAppIdentity,
     scope: 'read' | 'control',
     toolName: string,
-    callId: CallId | undefined,
+    callId: ToolCallId | undefined,
     signal: AbortSignal,
   ): Promise<ComputerLeaseSource> {
     await this.prepareStorage()
-    const sessionEvents = typeof (agent.session as any).snapshotEvents === 'function'
-      ? (agent.session as any).snapshotEvents()
-      : agent.session.events ?? []
+    const sessionLike = agent.session as Partial<typeof agent.session> & { events?: readonly SessionEvent[] }
+    const sessionEvents = typeof sessionLike.snapshotEvents === 'function'
+      ? sessionLike.snapshotEvents()
+      : sessionLike.events ?? []
     const turn = currentTurn(sessionEvents)
     if (turn === undefined) {
       throw new ComputerUseError('COMPUTER_PERMISSION_REQUIRED', `${scope} access for ${app.name} must be requested inside an open Agent turn`)

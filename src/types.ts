@@ -2,7 +2,7 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { CallId } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 
 /** Opaque identifier for one immutable observed UI state. */
 export type ComputerObservationId = Branded<'ComputerObservationId'>
@@ -295,7 +295,7 @@ export interface ComputerConfirmation {
 export interface ComputerUseContext {
   agent: Agent
   workspace: string
-  callId?: CallId
+  callId?: ToolCallId
   signal: AbortSignal
 }
 

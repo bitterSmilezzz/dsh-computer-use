@@ -1,7 +1,16 @@
 /** Validated provider, observation, settlement, artifact, and app-policy configuration. */
 import type Schema from '@deepseek-ai/schemastery';
-/** Settings document namespace owned by this package. */
-export declare const COMPUTER_USE_SETTINGS_NAMESPACE: import("@deepseek-ai/dsh-settings").SettingsNamespace;
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings';
+/**
+ * Settings document namespace owned by this package.
+ *
+ * Declared as a literal branded at the type level only: `settingsNamespace()`
+ * was removed from `@deepseek-ai/dsh-settings` in DSH 0.1.2-alpha.2
+ * (`f4e49ccf8f`, "move shared values behind service APIs"), where the runtime
+ * brand became an internal `parseSettingsNamespace`. `ctx.settings.register`
+ * still validates the string at runtime, and the generic narrows the literal.
+ */
+export declare const COMPUTER_USE_SETTINGS_NAMESPACE: SettingsNamespace;
 /** One persisted application grant. Wildcards are intentionally unsupported. */
 export interface ComputerUseAppGrant {
     bundleId: string;

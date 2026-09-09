@@ -2,7 +2,7 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { Session } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import { COMPUTER_USE_SKILL_CONTENT, COMPUTER_USE_SKILL_NAME } from './skill.ts'
@@ -80,12 +80,22 @@ function isSkillResult(value: unknown): boolean {
     && value.content === COMPUTER_USE_SKILL_CONTENT
 }
 
+/**
+ * Read a Session's event log through the current `snapshotEvents()` surface,
+ * falling back to the legacy `events` array for pre-0.1.2-alpha.4 Session
+ * shapes (and the test doubles that mimic them).
+ */
+function readSessionEvents(session: Session): readonly SessionEvent[] {
+  const candidate = session as Partial<Session> & { events?: readonly SessionEvent[] }
+  return typeof candidate.snapshotEvents === 'function'
+    ? candidate.snapshotEvents()
+    : candidate.events ?? []
+}
+
 /** Whether durable Session history proves that the bundled Skill was loaded. */
 export function hasLoadedComputerUseSkill(session: Session): boolean {
   const nativeCalls = new Set<string>()
-  const events = typeof (session as any).snapshotEvents === 'function'
-    ? (session as any).snapshotEvents()
-    : session.events ?? []
+  const events = readSessionEvents(session)
   for (const event of events) {
     if (event.type === 'user/message') {
       const source = event.data.source
@@ -106,7 +116,7 @@ export function hasLoadedComputerUseSkill(session: Session): boolean {
         && containsSkillContent(block.content)) return true
       continue
     }
-    if (event.type === 'tool/code-dispatch'
+    if (event.type === 'tool/ptc-dispatch'
       && event.data.name === 'skill'
       && event.data.isError === false
       && isSkillArguments(event.data.arguments)

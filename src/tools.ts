@@ -1,7 +1,8 @@
 /** Focused model-facing Computer Use Tool definitions. */
 
 import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm'
-import { defineTool, type JsonValue, type ToolDefinition, type ToolRunContext, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { defineTool, type ToolDefinition, type ToolRunContext, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 import {
   ComputerConfirmationToken,
   ComputerObservationId,

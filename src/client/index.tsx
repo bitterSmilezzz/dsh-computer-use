@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-settings/types'
+// Type-only: pulls the ui-renderer Context merge (ctx.slots), moved here in dsh-settings alpha.2.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** Parse one bounded integer using caller-owned localized error copy. */

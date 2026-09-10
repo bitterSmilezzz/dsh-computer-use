@@ -212,6 +212,61 @@ describe('model-facing Computer Use tools', () => {
     expect(tools[1]!.output.presentationMeta?.({}, current)).toEqual({ artifacts: [current.screenshot] })
   })
 
+  it('passes the new optional wait and pointer-modifier arguments through without changing defaults', async () => {
+    const current = observation()
+    const service = {
+      listApps: vi.fn(),
+      observe: vi.fn(async () => current),
+      act: vi.fn(async () => ({})),
+      confirm: vi.fn(),
+    }
+    const tools = createComputerUseTools(service as never)
+    const exec = {
+      name: 'computer-test',
+      callId: 'call-1',
+      signal: new AbortController().signal,
+      agent: { session: { header: {} } },
+      deferContext: vi.fn(),
+    }
+    const modifiers = { items: { enum: ['command', 'control', 'option', 'shift'] } }
+    // One shared modifier vocabulary across keyboard and pointer actions.
+    expect(tools[2]?.parameters).toMatchObject({ properties: { modifiers } })
+    expect(tools[7]?.parameters).toMatchObject({ properties: { modifiers } })
+    expect(tools[5]?.parameters).toMatchObject({ properties: { modifiers } })
+    // Silent helper clamps are declared where the caller can read them.
+    expect(JSON.stringify(tools[2]?.parameters)).toContain('1 to 3')
+    expect(JSON.stringify(tools[6]?.parameters)).toContain('1 to 10')
+    expect(tools[9]?.parameters).toMatchObject({
+      properties: {
+        condition: {
+          properties: {
+            elementValue: { type: 'string' },
+            absent: { type: 'boolean' },
+          },
+        },
+        timeoutMs: { type: 'integer' },
+      },
+    })
+    const confirmBranches = (tools[10]?.parameters as {
+      properties: { action: { oneOf: Array<{ properties: { kind: { const: string }; modifiers?: unknown } }> } }
+    }).properties.action.oneOf
+    expect(confirmBranches.find(branch => branch.properties.kind.const === 'click')?.properties.modifiers).toBeDefined()
+    expect(confirmBranches.find(branch => branch.properties.kind.const === 'drag')?.properties.modifiers).toBeDefined()
+
+    await tools[2]!.execute({ observationId: 'observation-1', elementIndex: 1, modifiers: ['command'] }, exec as never)
+    await tools[7]!.execute({ observationId: 'observation-1', fromX: 1, fromY: 2, toX: 3, toY: 4, modifiers: ['option'] }, exec as never)
+    await tools[2]!.execute({ observationId: 'observation-1', elementIndex: 1 }, exec as never)
+    await tools[9]!.execute({ observationId: 'observation-1', condition: { text: 'Loading', absent: true } }, exec as never)
+
+    expect(service.act.mock.calls[0]?.[0]).toMatchObject({ kind: 'click', modifiers: ['command'] })
+    expect(service.act.mock.calls[1]?.[0]).toMatchObject({ kind: 'drag', modifiers: ['option'] })
+    // Omitted arguments must not appear at all, so the provider keeps its
+    // pre-existing behavior for every caller that never passes them.
+    expect(service.act.mock.calls[2]?.[0]).not.toHaveProperty('modifiers')
+    expect(service.act.mock.calls[3]?.[0]).toMatchObject({ kind: 'wait', condition: { text: 'Loading', absent: true } })
+    expect(service.act.mock.calls[3]?.[0]).not.toHaveProperty('timeoutMs')
+  })
+
   it('requires an Agent-backed Session for execution', async () => {
     const service = { listApps: vi.fn() }
     const [list] = createComputerUseTools(service as never)

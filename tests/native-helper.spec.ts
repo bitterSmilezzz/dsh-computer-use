@@ -381,6 +381,31 @@ describe.skipIf(process.platform !== 'darwin')('managed native helper', () => {
         message: 'COMPUTER_PROVIDER_FAILURE: native helper returned invalid JSON',
       })
 
+      // The envelope is untrusted provider output: a code outside the published
+      // vocabulary must not be asserted into the union, and the raw code has to
+      // survive in the message for diagnosis.
+      const unknownCode = new NativeHelperClient({
+        subprocess: {
+          spawn: () => completedHandle(JSON.stringify({ ok: false, error: { code: 'COMPUTER_FUTURE_CODE', message: 'the helper knows a newer code' } })),
+        },
+      } as never, resolveConfig({ helper: { path: executable } }))
+      await unknownCode.prepare(new AbortController().signal)
+      await expect(unknownCode.invoke({ command: 'health' }, new AbortController().signal)).rejects.toMatchObject({
+        code: 'COMPUTER_PROVIDER_FAILURE',
+        message: 'COMPUTER_PROVIDER_FAILURE: native helper reported an unknown error code COMPUTER_FUTURE_CODE: the helper knows a newer code',
+      })
+
+      const knownCode = new NativeHelperClient({
+        subprocess: {
+          spawn: () => completedHandle(JSON.stringify({ ok: false, error: { code: 'COMPUTER_ACTION_BLOCKED', message: 'Accessibility value assignment was rejected' } })),
+        },
+      } as never, resolveConfig({ helper: { path: executable } }))
+      await knownCode.prepare(new AbortController().signal)
+      await expect(knownCode.invoke({ command: 'health' }, new AbortController().signal)).rejects.toMatchObject({
+        code: 'COMPUTER_ACTION_BLOCKED',
+        message: 'COMPUTER_ACTION_BLOCKED: Accessibility value assignment was rejected',
+      })
+
       const cancelled = new NativeHelperClient({
         subprocess: { spawn: (spec: { signal?: AbortSignal }) => abortingHandle(spec.signal) },
       } as never, resolveConfig({ helper: { path: executable } }))

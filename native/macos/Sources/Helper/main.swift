@@ -886,13 +886,22 @@ private func performAction(
 
     switch kind {
     case "click":
-        if let record, pressWithDescendantFallback(record.element) {
+        // Modifiers cannot be expressed through an Accessibility press, so a
+        // modified click always resolves to real target-process pointer input.
+        let clickModifiers = action["modifiers"] as? [String] ?? []
+        let clickFlags = try flags(clickModifiers)
+        if clickFlags.isEmpty, let record, pressWithDescendantFallback(record.element) {
             return actionResult(channel: "accessibility", activation: "not-requested", pointerInput: false)
         }
         let elementFallback = record != nil && bool(action["allowCoordinateFallback"])
         let coordinateFallback = action["x"] != nil && action["y"] != nil
         guard elementFallback || coordinateFallback else {
-            throw fail("COMPUTER_ELEMENT_UNAVAILABLE", "element does not support an actionable AXPress and coordinate fallback was not requested")
+            throw fail(
+                "COMPUTER_ELEMENT_UNAVAILABLE",
+                clickFlags.isEmpty
+                    ? "element does not support an actionable AXPress and coordinate fallback was not requested"
+                    : "modifiers need real pointer input, but this click has no coordinate fallback; pass allowCoordinateFallback=true or an explicit x/y"
+            )
         }
         try requirePointerInput(pointerInputPolicy)
         let current = try inputContext(
@@ -914,7 +923,8 @@ private func performAction(
                     at: point,
                     button: try mouseButton(action["button"] as? String),
                     count: min(max((action["clickCount"] as? NSNumber)?.intValue ?? 1, 1), 3),
-                    target: target
+                    target: target,
+                    eventFlags: clickFlags
                 )
             }
             return actionResult(channel: "coordinates", activation: current.activation, pointerInput: true, pointerRouting: "target-process")
@@ -928,7 +938,8 @@ private func performAction(
                     at: point,
                     button: try mouseButton(action["button"] as? String),
                     count: min(max((action["clickCount"] as? NSNumber)?.intValue ?? 1, 1), 3),
-                    target: target
+                    target: target,
+                    eventFlags: clickFlags
                 )
             }
             return actionResult(channel: "coordinates", activation: current.activation, pointerInput: true, pointerRouting: "target-process")
@@ -938,7 +949,12 @@ private func performAction(
         guard let record else { throw fail("COMPUTER_ELEMENT_UNAVAILABLE", "set-value requires an observed element") }
         let value = try stringAllowingEmpty(action["value"], "action.value")
         let result = AXUIElementSetAttributeValue(record.element, kAXValueAttribute as CFString, value as CFTypeRef)
-        guard result == .success else { throw fail("COMPUTER_ACTION_BLOCKED", "Accessibility value assignment was rejected") }
+        guard result == .success else {
+            throw fail(
+                "COMPUTER_ACTION_BLOCKED",
+                "Accessibility value assignment was rejected: this element does not accept an AXValue; focus the control and use computer_type_text, or use computer_press_key for a key-driven change"
+            )
+        }
         return actionResult(channel: "accessibility", activation: "not-requested", pointerInput: false)
     case "type-text":
         let text = try string(action["text"], "action.text")
@@ -1036,6 +1052,7 @@ private func performAction(
             throw fail("COMPUTER_PROVIDER_FAILURE", "request.interaction cursor motion is outside the supported range")
         }
         let target = try pointerTarget(app: app, window: current.snapshot.windowJSON, at: from)
+        let dragFlags = try flags(action["modifiers"] as? [String] ?? [])
         try dragStartBarrier?()
         try pointerAction {
             try targetedDrag(
@@ -1043,7 +1060,8 @@ private func performAction(
                 to: to,
                 target: target,
                 speedPxPerSecond: cursorSpeed,
-                accelerationPxPerSecondSquared: cursorAcceleration
+                accelerationPxPerSecondSquared: cursorAcceleration,
+                eventFlags: dragFlags
             )
         }
         return actionResult(channel: "coordinates", activation: current.activation, pointerInput: true, pointerRouting: "target-process")

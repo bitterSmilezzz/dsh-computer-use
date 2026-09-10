@@ -148,7 +148,8 @@ func targetedClick(
     at point: CGPoint,
     button: CGMouseButton,
     count: Int,
-    target: TargetedPointerTarget
+    target: TargetedPointerTarget,
+    eventFlags: CGEventFlags = []
 ) throws {
     let source = try targetedPointerSource()
     let group = clickGroup()
@@ -171,6 +172,8 @@ func targetedClick(
     for pair in 1...max(1, count) {
         let down = try pointerEvent(source: source, type: downType, button: button)
         down.setDoubleValueField(.mouseEventPressure, value: 1)
+        // Modifiers travel with the press, never as a held system key state.
+        down.flags = eventFlags
         try postPointerEvent(
             down,
             target: target,
@@ -185,6 +188,7 @@ func targetedClick(
 
         let up = try pointerEvent(source: source, type: upType, button: button)
         up.setDoubleValueField(.mouseEventPressure, value: 0)
+        up.flags = eventFlags
         try postPointerEvent(
             up,
             target: target,
@@ -248,7 +252,8 @@ func targetedDrag(
     to: CGPoint,
     target: TargetedPointerTarget,
     speedPxPerSecond: Double,
-    accelerationPxPerSecondSquared: Double
+    accelerationPxPerSecondSquared: Double,
+    eventFlags: CGEventFlags = []
 ) throws {
     let source = try targetedPointerSource()
     let group = clickGroup()
@@ -267,6 +272,9 @@ func targetedDrag(
 
     let down = try pointerEvent(source: source, type: .leftMouseDown, button: .left)
     down.setDoubleValueField(.mouseEventPressure, value: 1)
+    // The whole gesture carries the modifiers so the target app sees one
+    // continuous held-modifier drag instead of a press that loses them.
+    down.flags = eventFlags
     try postPointerEvent(
         down,
         target: target,
@@ -298,6 +306,7 @@ func targetedDrag(
         let point = cursorMotionPoint(from: from, to: to, fraction: fraction)
         let dragged = try pointerEvent(source: source, type: .leftMouseDragged, button: .left)
         dragged.setDoubleValueField(.mouseEventPressure, value: 1)
+        dragged.flags = eventFlags
         try postPointerEvent(
             dragged,
             target: target,
@@ -314,6 +323,7 @@ func targetedDrag(
 
     let up = try pointerEvent(source: source, type: .leftMouseUp, button: .left)
     up.setDoubleValueField(.mouseEventPressure, value: 0)
+    up.flags = eventFlags
     try postPointerEvent(
         up,
         target: target,

@@ -44,6 +44,8 @@ export interface ComputerUseConfig {
   actionTimeoutMs?: number
   settleMs?: number
   maxSettleMs?: number
+  /** Upper bound for one computer_wait `timeoutMs`. Independent of the post-action settle budget. */
+  maxWaitMs?: number
   maxNodes?: number
   maxDepth?: number
   maxTextBytes?: number
@@ -65,6 +67,7 @@ export const Config: Schema<ComputerUseConfig> = z.object({
   actionTimeoutMs: z.number().default(15000),
   settleMs: z.number().default(250),
   maxSettleMs: z.number().default(5000),
+  maxWaitMs: z.number().default(30000),
   maxNodes: z.number().default(500),
   maxDepth: z.number().default(14),
   maxTextBytes: z.number().default(64000),
@@ -100,6 +103,7 @@ export interface ResolvedComputerUseConfig {
   actionTimeoutMs: number
   settleMs: number
   maxSettleMs: number
+  maxWaitMs: number
   maxNodes: number
   maxDepth: number
   maxTextBytes: number
@@ -152,6 +156,11 @@ export function resolveConfig(config: ComputerUseConfig = {}): ResolvedComputerU
   if (settleMs > maxSettleMs) {
     throw new ComputerUseError('COMPUTER_PROVIDER_FAILURE', 'settleMs must be no greater than maxSettleMs')
   }
+  // The wait ceiling is its own budget, but it can never sit below the settle
+  // budget: an omitted `timeoutMs` defaults to maxSettleMs, so a smaller ceiling
+  // would make the documented default illegal and fail an otherwise valid
+  // settings document that only configures maxSettleMs.
+  const maxWaitMs = Math.max(integer('maxWaitMs', config.maxWaitMs ?? 30000, 100, 600000), maxSettleMs)
   const maxNodes = integer('maxNodes', config.maxNodes ?? 500, 10, 5000)
   const maxDepth = integer('maxDepth', config.maxDepth ?? 14, 1, 64)
   const maxTextBytes = integer('maxTextBytes', config.maxTextBytes ?? 64000, 1024, 1048576)
@@ -195,6 +204,7 @@ export function resolveConfig(config: ComputerUseConfig = {}): ResolvedComputerU
     actionTimeoutMs,
     settleMs,
     maxSettleMs,
+    maxWaitMs,
     maxNodes,
     maxDepth,
     maxTextBytes,

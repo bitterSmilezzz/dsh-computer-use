@@ -183,14 +183,14 @@ Bundle 初始只贡献 `computer_use_activate`。加载 Skill 后，才为当前
 |---|---|
 | `computer_list_apps` | 列出有界用户应用及 bundle id、pid、前台状态和权限诊断 |
 | `computer_observe` | 返回新鲜的 full/diff Accessibility observation 与可选截图 Artifact |
-| `computer_click` | 优先使用 `AXPress`；接受准确 index 或 opaque target handle，并可在目标进程坐标 fallback 前执行安全 rebind |
+| `computer_click` | 优先使用 `AXPress`；接受准确 index 或 opaque target handle，并可在目标进程坐标 fallback 前执行安全 rebind；可选 modifiers 为真实指针点击按住 command/control/option/shift |
 | `computer_set_value` | 通过准确 index 或 opaque target handle 设置或清空可编辑 Accessibility value，不使用剪贴板 |
 | `computer_type_text` | 支持时通过 Accessibility 插入 Unicode，否则使用进程定向键盘 fallback |
 | `computer_press_key` | 向选定进程发送有限词表中的按键，并支持可选 modifier |
 | `computer_scroll` | 在已解析元素或窗口/屏幕坐标处向选定进程与窗口发送有界方向滚动 |
-| `computer_drag` | 在引用 observation 的窗口/屏幕两点之间拖拽 |
+| `computer_drag` | 在引用 observation 的窗口/屏幕两点之间拖拽，可选在整个手势期间按住 command/control/option/shift |
 | `computer_perform_action` | 执行准确或安全 rebind 后的选定元素所声明的 Accessibility action |
-| `computer_wait` | 轮询一个有界 text/role/title 条件，不修改应用并返回新鲜状态 |
+| `computer_wait` | 等待一个有界 text/role/title/value 条件，或用 `absent: true` 等待该条件消失，随后不修改应用并返回新鲜状态 |
 | `computer_confirm` | 获取绑定准确敏感动作的一次性 token |
 
 任何 Tool 都不接受 AppleScript、JXA、shell、Swift、Objective-C、native selector、任意 Accessibility constant 或源码。
@@ -234,6 +234,7 @@ Accessibility 与 Screen Recording 是 UI 权限，不是文件系统权限。�
 | `actionTimeoutMs` | `1000` 到 `120000` ms 的 native action 硬超时 |
 | `settleMs` | `0` 到 `10000` ms 的动作后状态检查间隔 |
 | `maxSettleMs` | `100` 到 `60000` ms 的动作后 settle 最大预算 |
+| `maxWaitMs` | 单次 `computer_wait` 超时上限，`100` 到 `600000` ms，默认 `30000`；配置值小于 `maxSettleMs` 时会被提升到 `maxSettleMs`（未传 `timeoutMs` 时默认仍为 `maxSettleMs`） |
 | `maxNodes` / `maxDepth` / `maxTextBytes` | Accessibility 遍历与模型可见文本上限 |
 | `maxScreenshotBytes` | PNG Artifact 最大字节数 |
 | `artifactRoot` | workspace 内的相对截图目录 |

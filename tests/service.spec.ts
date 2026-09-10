@@ -1,8 +1,11 @@
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalOutcome, ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { resolveConfig, type ComputerUseConfig } from '../src/config.ts'
 import type { ComputerUseSessionState } from '../src/leases.ts'
+import type { BackendObservation, BackendObserveOptions } from '../src/backend.ts'
 import { ComputerUseError } from '../src/errors.ts'
 import { ComputerUseService } from '../src/service.ts'
 import {
@@ -10,6 +13,7 @@ import {
   ComputerConfirmationToken,
   ComputerTargetHandle,
   type ComputerActionRequest,
+  type ComputerAppIdentity,
   type ComputerUseContext,
 } from '../src/types.ts'
 import { FakeBackend, FIXTURE_APP, backendObservation, fakeAgent, temporaryDirectory } from './helpers.ts'
@@ -28,7 +32,7 @@ function serviceHarness(
   config: ComputerUseConfig = {},
   approval: ApprovalOutcome = 'allowed-once',
   policy: ApprovalPolicy = 'ask',
-  options: { storage?: boolean; flushParticipates?: boolean } = {},
+  options: { storage?: boolean; flushParticipates?: boolean; backend?: FakeBackend } = {},
 ) {
   const ctx = new Context()
   const order: string[] = []
@@ -66,7 +70,7 @@ function serviceHarness(
       }),
     } as never)
   }
-  const backend = new FakeBackend()
+  const backend = options.backend ?? new FakeBackend()
   const service = new TestComputerUseService(ctx, backend, resolveConfig({
     settleMs: 0,
     maxSettleMs: 100,
@@ -1237,4 +1241,348 @@ describe('Computer Use Service', () => {
       await workspace.cleanup()
     }
   })
+
+  it('waits for a matched condition to disappear when absent is true', async () => {
+    const workspace = await temporaryDirectory('dsh-computer-wait-absent-')
+    try {
+      const { backend, service } = serviceHarness({ settleMs: 10, maxSettleMs: 300 })
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      // The referenced observation still shows the progress indicator, and the
+      // provider drops it shortly after, which is what a caller waits for.
+      backend.observation = backendObservation({
+        ...backend.observation,
+        stateHash: 'loading-state',
+        treeText: `${backend.observation.treeText}\nLoading 42%`,
+        elements: [...backend.observation.elements, {
+          index: backend.observation.elements.length,
+          locator: [98],
+          role: 'AXProgressIndicator',
+          value: 'Loading 42%',
+          actions: [],
+        }],
+      })
+      const observation = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'none' }, context)
+      setTimeout(() => {
+        backend.observation = backendObservation({
+          ...backend.observation,
+          stateHash: 'loaded-state',
+          treeText: backend.observation.treeText.replace('\nLoading 42%', ''),
+          elements: backend.observation.elements.filter(element => element.role !== 'AXProgressIndicator'),
+        })
+      }, 30)
+      const result = await service.act({
+        kind: 'wait',
+        observationId: observation.observationId,
+        condition: { text: 'Loading 42%', absent: true },
+        timeoutMs: 250,
+      }, context)
+      expect(result.channel).toBe('wait')
+      expect(result.effect.observedStateChanged).toBe(true)
+      expect(result.observation.elements.some(element => element.value === 'Loading 42%')).toBe(false)
+
+      // An absent wait whose matcher is already gone resolves against the
+      // referenced observation itself instead of polling.
+      const alreadyGone = await service.act({
+        kind: 'wait',
+        observationId: result.observation.observationId,
+        condition: { text: 'Loading 42%', absent: true },
+        timeoutMs: 250,
+      }, context)
+      expect(alreadyGone.effect.observedStateChanged).toBe(false)
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('matches an exact element value and rejects an empty condition without waiting', async () => {
+    const workspace = await temporaryDirectory('dsh-computer-wait-value-')
+    try {
+      const { backend, service } = serviceHarness({ settleMs: 10, maxSettleMs: 300 })
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const observation = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'none' }, context)
+      // The fake provider reports the element it just created as `value`, so an
+      // exact elementValue matcher is satisfied by that fresh state.
+      const clicked = await service.act({ kind: 'click', observationId: observation.observationId, elementIndex: 1 }, context)
+      const created = clicked.observation.elements.find(element => element.role === 'AXStaticText')?.value
+      expect(created).toBeDefined()
+      const matched = await service.act({
+        kind: 'wait',
+        observationId: clicked.observation.observationId,
+        condition: { elementValue: created },
+      }, context)
+      expect(matched.effect.observedStateChanged).toBe(false)
+
+      // A condition with no matcher can never resolve, so it fails immediately:
+      // no provider round trip, no wait, and one actionable correction.
+      const observesBefore = backend.observations.length
+      await expect(service.act({
+        kind: 'wait',
+        observationId: observation.observationId,
+        condition: {},
+      }, context)).rejects.toMatchObject({
+        code: 'COMPUTER_INVALID_ARGUMENT',
+        message: expect.stringContaining('condition must set at least one of text, elementRole, elementTitle, or elementValue'),
+      })
+      await expect(service.act({
+        kind: 'wait',
+        observationId: observation.observationId,
+        condition: { absent: false },
+      }, context)).rejects.toMatchObject({ code: 'COMPUTER_INVALID_ARGUMENT' })
+      expect(backend.observations).toHaveLength(observesBefore)
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('bounds wait timeouts by maxWaitMs independently of the settle budget', async () => {
+    const workspace = await temporaryDirectory('dsh-computer-wait-budget-')
+    try {
+      const { backend, service } = serviceHarness({ settleMs: 10, maxSettleMs: 100, maxWaitMs: 400 })
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const observation = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'none' }, context)
+
+      // The default stays the historical maxSettleMs, and the ceiling is the
+      // separate wait budget, so a slow load is no longer capped at 100ms.
+      setTimeout(() => {
+        backend.observation = backendObservation({
+          ...backend.observation,
+          stateHash: 'slow-state',
+          treeText: `${backend.observation.treeText}\nSlow load complete`,
+          elements: [...backend.observation.elements, {
+            index: backend.observation.elements.length,
+            locator: [97],
+            role: 'AXStaticText',
+            value: 'Slow load complete',
+            actions: [],
+          }],
+        })
+      }, 150)
+      const slow = await service.act({
+        kind: 'wait',
+        observationId: observation.observationId,
+        condition: { text: 'slow load complete' },
+        timeoutMs: 350,
+      }, context)
+      expect(slow.observation.tree.text).toContain('Slow load complete')
+      expect(slow.effect.observedForMs).toBeGreaterThanOrEqual(100)
+
+      await expect(service.act({
+        kind: 'wait',
+        observationId: slow.observation.observationId,
+        condition: { text: 'never present' },
+        timeoutMs: 401,
+      }, context)).rejects.toMatchObject({
+        code: 'COMPUTER_INVALID_ARGUMENT',
+        message: expect.stringContaining('wait timeoutMs must be an integer between 100 and 400 milliseconds'),
+      })
+
+      await expect(service.act({
+        kind: 'wait',
+        observationId: slow.observation.observationId,
+        condition: { text: 'never present' },
+        timeoutMs: 150,
+      }, context)).rejects.toMatchObject({
+        code: 'COMPUTER_TIMEOUT',
+        message: expect.stringContaining('call computer_observe to inspect the current app state'),
+      })
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('bounds the assigned Accessibility value and never calls the provider with an oversized one', async () => {
+    const workspace = await temporaryDirectory('dsh-computer-set-value-limit-')
+    try {
+      const { backend, service } = serviceHarness()
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const observation = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'none' }, context)
+      const actionsBefore = backend.actions.length
+      await expect(service.act({
+        kind: 'set-value',
+        observationId: observation.observationId,
+        elementIndex: 1,
+        value: 'x'.repeat(64001),
+      }, context)).rejects.toMatchObject({
+        code: 'COMPUTER_INVALID_ARGUMENT',
+        message: expect.stringContaining('at most 64000 characters'),
+      })
+      expect(backend.actions).toHaveLength(actionsBefore)
+
+      // The bound is inclusive: a value exactly at the limit still reaches the
+      // provider through the unchanged path.
+      await expect(service.act({
+        kind: 'set-value',
+        observationId: observation.observationId,
+        elementIndex: 1,
+        value: 'y'.repeat(64000),
+      }, context)).resolves.toMatchObject({ action: 'set-value' })
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('reuses the settled frame when the referenced observation carried a screenshot', async () => {
+    // A screenshot request used to cost one frame for the settle verdict plus a
+    // second full crawl for the returned evidence.
+    const workspace = await temporaryDirectory('dsh-computer-settle-reuse-')
+    try {
+      const { backend, service } = serviceHarness()
+      await service.initializeForTest()
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const before = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'required' }, context)
+      const observesBefore = backend.observations.length
+      const result = await service.act({ kind: 'click', observationId: before.observationId, elementIndex: 1 }, context)
+      expect(backend.observations).toHaveLength(observesBefore + 1)
+      expect(backend.observations.at(-1)?.screenshot).toBe('optional')
+      expect(result.effect.observedStateChanged).toBe(true)
+      expect(result.observation.screenshot).toMatchObject({
+        mimeType: 'image/png',
+        sourceTool: 'computer_action',
+        width: 760,
+        height: 592,
+      })
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('removes the settle frame the returned observation does not reference', async () => {
+    // A frame that carries a screenshot can only be returned when it also ends
+    // the loop, so one that is walked past must not survive as an artifact.
+    const workspace = await temporaryDirectory('dsh-computer-settle-artifact-')
+    try {
+      const { backend, service } = serviceHarness({ settleMs: 10, maxSettleMs: 100 })
+      backend.inert = true
+      await service.initializeForTest()
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const before = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'required' }, context)
+      const result = await service.act({ kind: 'click', observationId: before.observationId, elementIndex: 1 }, context)
+      expect(result.effect.observedStateChanged).toBe(false)
+      expect(backend.observations.length).toBeGreaterThan(2)
+      expect(result.observation.screenshot).toBeDefined()
+      const artifacts = await readdir(join(workspace.path, '.dsh-computer-use', 'artifacts', String(agent.session.id)))
+      expect(artifacts).toHaveLength(2)
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('confirms the first frame of a change before reporting it as settled', async () => {
+    // The frame taken right after the action reports whatever the UI shows at
+    // t = 0, which includes a hover, a focus ring, or one intermediate layout.
+    // It nominates the change; the next frame, one settleMs later, proves it.
+    const workspace = await temporaryDirectory('dsh-computer-settle-confirm-')
+    try {
+      const backend = new ScriptedSettleBackend()
+      const { service } = serviceHarness({ settleMs: 40, maxSettleMs: 300 }, 'allowed-once', 'ask', { backend })
+      await service.initializeForTest()
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const before = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'required' }, context)
+      backend.markAction()
+      const result = await service.act({ kind: 'click', observationId: before.observationId, elementIndex: 1 }, context)
+
+      // The nominating frame asks for no screenshot, and the confirming frame is
+      // the returned evidence: two frames, no second full crawl for the picture.
+      expect(backend.frameTimes).toHaveLength(2)
+      expect(backend.observations.slice(-2).map(frame => frame.screenshot)).toEqual(['none', 'optional'])
+      expect(backend.frameTimes[1]).toBeGreaterThanOrEqual(40)
+      expect(result.effect.observedStateChanged).toBe(true)
+      expect(result.effect.observedForMs).toBeGreaterThanOrEqual(40)
+      expect(result.observation.screenshot).toMatchObject({ mimeType: 'image/png', sourceTool: 'computer_action' })
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('reuses the frame that reveals a change after the settle window', async () => {
+    // A change that shows up only once the action has landed is the evidence the
+    // previous implementation collected directly, so it stays a single extra
+    // frame: no artifact is written and discarded on the way there.
+    const workspace = await temporaryDirectory('dsh-computer-settle-late-')
+    try {
+      const backend = new ScriptedSettleBackend()
+      const reference = backend.observation.stateHash
+      const { service } = serviceHarness({ settleMs: 40, maxSettleMs: 400 }, 'allowed-once', 'ask', { backend })
+      await service.initializeForTest()
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const before = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'required' }, context)
+      backend.stateAt = atMs => (atMs >= 40 ? 'late-state' : reference)
+      backend.markAction()
+      const result = await service.act({ kind: 'click', observationId: before.observationId, elementIndex: 1 }, context)
+
+      expect(backend.frameTimes).toHaveLength(2)
+      expect(backend.observations.slice(-2).map(frame => frame.screenshot)).toEqual(['none', 'optional'])
+      expect(result.effect.observedStateChanged).toBe(true)
+      expect(result.observation.screenshot).toMatchObject({ mimeType: 'image/png', sourceTool: 'computer_action' })
+      // The only artifacts are the referenced observation and the returned frame.
+      const artifacts = await readdir(join(workspace.path, '.dsh-computer-use', 'artifacts', String(agent.session.id)))
+      expect(artifacts).toHaveLength(2)
+    } finally {
+      await workspace.cleanup()
+    }
+  })
+
+  it('keeps waiting instead of settling when the first frame reports a transient', async () => {
+    // A change that is already gone one settleMs later never happened as far as
+    // this bounded observation can prove, so the action is reported as unsettled
+    // with a fresh frame rather than with the transient one.
+    const workspace = await temporaryDirectory('dsh-computer-settle-transient-')
+    try {
+      const backend = new ScriptedSettleBackend()
+      const reference = backend.observation.stateHash
+      const { service } = serviceHarness({ settleMs: 40, maxSettleMs: 200 }, 'allowed-once', 'ask', { backend })
+      await service.initializeForTest()
+      const agent = fakeAgent(workspace.path)
+      const context = callContext(agent, workspace.path)
+      const before = await service.observe({ app: { bundleId: FIXTURE_APP.bundleId }, screenshot: 'required' }, context)
+      backend.stateAt = atMs => (atMs < 40 ? 'transient-state' : reference)
+      backend.markAction()
+      const result = await service.act({ kind: 'click', observationId: before.observationId, elementIndex: 1 }, context)
+
+      expect(result.effect.observedStateChanged).toBe(false)
+      expect(result.effect.note).toContain('pixel-only, remote, or transient effects may still have occurred')
+      expect(backend.frameTimes.length).toBeGreaterThan(2)
+      expect(result.effect.observedForMs).toBeLessThanOrEqual(400)
+      expect(result.observation.screenshot).toBeDefined()
+      const artifacts = await readdir(join(workspace.path, '.dsh-computer-use', 'artifacts', String(agent.session.id)))
+      expect(artifacts).toHaveLength(2)
+    } finally {
+      await workspace.cleanup()
+    }
+  })
 })
+
+/**
+ * A backend whose post-action state is scripted per frame, so the settle loop
+ * can be probed on the three shapes a real action takes: the change is already
+ * visible when the loop starts, it appears one settleMs later, or it reverts.
+ */
+class ScriptedSettleBackend extends FakeBackend {
+  /** Elapsed milliseconds since `markAction()` for every post-action frame. */
+  readonly frameTimes: number[] = []
+  private actionAt = 0
+  /** State the UI reports for a frame observed `atMs` after the action. */
+  stateAt: (atMs: number) => string = () => this.observation.stateHash
+
+  markAction(): void {
+    this.actionAt = Date.now()
+    this.frameTimes.length = 0
+  }
+
+  override async observe(app: ComputerAppIdentity, options: BackendObserveOptions): Promise<BackendObservation> {
+    const frame = await super.observe(app, options)
+    if (this.actionAt === 0) return frame
+    const atMs = Date.now() - this.actionAt
+    this.frameTimes.push(atMs)
+    frame.stateHash = this.stateAt(atMs)
+    return frame
+  }
+}

@@ -95,7 +95,19 @@ describe('Computer Use configuration', () => {
     [{ interaction: { cursorAutoHideMs: 30001 } }, /interaction\.cursorAutoHideMs/],
     [{ grants: [{ bundleId: '*' }] }, /non-wildcard/],
     [{ grants: [{ bundleId: 'com.example.App' }, { bundleId: 'com.example.App' }] }, /duplicate/],
+    [{ maxWaitMs: 99 }, /maxWaitMs/],
+    [{ maxWaitMs: 600001 }, /maxWaitMs/],
   ] as const)('rejects invalid configuration %o', (value, pattern) => {
     expect(() => resolveConfig(value)).toThrow(pattern)
+  })
+
+  it('bounds computer_wait with an independent maxWaitMs that never shrinks the settle default', () => {
+    // The default wait ceiling is its own budget, and the historical default
+    // timeout (maxSettleMs) must stay legal under it without failing the whole
+    // settings document.
+    expect(resolveConfig({}).maxWaitMs).toBe(30000)
+    expect(resolveConfig({ maxSettleMs: 60000 }).maxWaitMs).toBe(60000)
+    expect(resolveConfig({ maxSettleMs: 60000, maxWaitMs: 600000 }).maxWaitMs).toBe(600000)
+    expect(resolveConfig({ maxSettleMs: 5000, maxWaitMs: 4000 }).maxWaitMs).toBe(5000)
   })
 })

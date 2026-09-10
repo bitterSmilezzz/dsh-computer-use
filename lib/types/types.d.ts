@@ -143,6 +143,8 @@ export interface ComputerClickAction extends ComputerActionBase, ComputerElement
     button?: ComputerMouseButton;
     clickCount?: number;
     allowCoordinateFallback?: boolean;
+    /** Held modifiers for the pointer event, for example `command` for a new-tab click. */
+    modifiers?: ComputerKeyModifier[];
 }
 /** Set the Accessibility value of an observed editable element. */
 export interface ComputerSetValueAction extends ComputerActionBase, ComputerElementTarget {
@@ -177,20 +179,34 @@ export interface ComputerDragAction extends ComputerActionBase {
     toX: number;
     toY: number;
     coordinateSpace?: ComputerCoordinateSpace;
+    /** Held modifiers for the whole drag gesture, for example `option` for a copy drag. */
+    modifiers?: ComputerKeyModifier[];
 }
 /** Perform one Accessibility action advertised by an observed element. */
 export interface ComputerPerformAction extends ComputerActionBase, ComputerElementTarget {
     kind: 'perform-action';
     action: string;
 }
+/**
+ * One AND-combined Accessibility wait condition.
+ *
+ * A condition must set at least one matcher; `absent` only inverts the match,
+ * so an empty matcher set is rejected instead of waiting for the deadline.
+ */
+export interface ComputerWaitCondition {
+    text?: string;
+    elementRole?: string;
+    elementTitle?: string;
+    /** Exact match on one observed element value. */
+    elementValue?: string;
+    /** When true the wait resolves as soon as the matchers stop matching, which is how a caller waits for a progress indicator or dialog to disappear. */
+    absent?: boolean;
+}
 /** Wait for a bounded UI condition without mutating state. */
 export interface ComputerWaitAction extends ComputerActionBase {
     kind: 'wait';
-    condition: {
-        text?: string;
-        elementRole?: string;
-        elementTitle?: string;
-    };
+    condition: ComputerWaitCondition;
+    /** Bounded by the host `maxWaitMs`; omitted means the host `maxSettleMs`. */
     timeoutMs?: number;
 }
 /** Every model-accessible Computer Use action. */

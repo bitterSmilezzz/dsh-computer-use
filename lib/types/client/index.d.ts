@@ -31,13 +31,16 @@ declare const en: {
     readonly actionTimeout: "Action timeout (ms)";
     readonly settle: "Settlement interval (ms)";
     readonly maxSettle: "Maximum settlement (ms)";
+    readonly maxWait: "Maximum computer_wait timeout (ms; raised to the settlement ceiling when lower)";
     readonly maxNodes: "Maximum AX nodes";
     readonly maxDepth: "Maximum AX depth";
     readonly maxText: "Maximum AX text bytes";
     readonly maxScreenshot: "Maximum screenshot bytes";
     readonly artifactRoot: "Artifact root";
     readonly helperPath: "External helper path";
+    readonly helperPathPlaceholder: "Managed by the plugin";
     readonly sourceBuild: "Allow explicit source-build fallback";
+    readonly techDetails: "Technical details";
     readonly interaction: "Foreground and targeted input";
     readonly interactionHint: "The default route sends pointer and keyboard events only to the selected process. It does not move the system cursor or activate the app.";
     readonly focusPolicy: "Foreground policy";
@@ -63,10 +66,18 @@ declare const en: {
     readonly save: "Save and apply";
     readonly saving: "Applying...";
     readonly saved: "Settings applied.";
+    readonly unsaved: "Unsaved changes";
+    readonly discard: "Discard changes";
     readonly readOnly: "The current Settings provider is read-only.";
     readonly loading: "Loading Computer Use settings...";
     readonly retry: "Retry";
     readonly numberRange: "{field} must be an integer from {min} to {max}.";
+    readonly settleExceedsMax: "{settle} must not be greater than {max}.";
+    readonly grantLine: "Each app rule must be one app identifier followed by read or read,control: {line}";
+    readonly grantScope: "App rule permissions may only be read or control: {line}";
+    readonly grantBundleId: "The app identifier must be exact and cannot contain wildcards: {line}";
+    readonly grantDuplicate: "The same app is listed more than once: {bundleId}";
+    readonly artifactRootInvalid: "Use a workspace-relative path without a leading slash or \"..\".";
 };
 type LocaleKey = keyof typeof en;
 declare module '@deepseek-ai/dsh-client-ui-slots' {

@@ -17,8 +17,23 @@ export declare class ComputerUseExposure {
     private readonly createTools;
     readonly activationTool: ToolDefinition;
     private readonly states;
+    /**
+     * Memoized Skill-activation verdicts, released with the Session they describe.
+     * `snapshot` is the exact event snapshot the verdict came from: Session
+     * snapshots are stable per revision and replaced on every append, so an
+     * identical snapshot cannot be hiding new events. Doubles that grow an array
+     * in place are still caught by the length and last-event checks.
+     */
+    private readonly skillProbes;
     private installed;
     constructor(ctx: Context, createTools: () => ToolDefinition[]);
+    /**
+     * Cached form of `hasLoadedComputerUseSkill` for the per-call paths: the scan
+     * walks the whole Session log looking for a 7.5 KB needle, which must not run
+     * on every bash invocation. A verdict is reused only while the log is visibly
+     * unchanged, and any doubt falls back to a full rescan.
+     */
+    private hasLoadedSkill;
     /** Install lifecycle listeners and adopt existing Agents. */
     install(): () => void;
     private attach;

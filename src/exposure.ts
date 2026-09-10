@@ -34,6 +34,13 @@ interface AgentExposure {
   toolNames: string[]
 }
 
+interface SkillActivationProbe {
+  snapshot: readonly SessionEvent[]
+  eventCount: number
+  lastEvent: SessionEvent | undefined
+  loaded: boolean
+}
+
 /** Activation result returned to the model. */
 export interface ComputerUseActivationResult {
   activated: boolean
@@ -94,8 +101,12 @@ function readSessionEvents(session: Session): readonly SessionEvent[] {
 
 /** Whether durable Session history proves that the bundled Skill was loaded. */
 export function hasLoadedComputerUseSkill(session: Session): boolean {
+  return loadedFromEvents(readSessionEvents(session))
+}
+
+/** Scan one immutable event snapshot for durable Skill-activation evidence. */
+function loadedFromEvents(events: readonly SessionEvent[]): boolean {
   const nativeCalls = new Set<string>()
-  const events = readSessionEvents(session)
   for (const event of events) {
     if (event.type === 'user/message') {
       const source = event.data.source
@@ -129,6 +140,14 @@ export function hasLoadedComputerUseSkill(session: Session): boolean {
 export class ComputerUseExposure {
   readonly activationTool: ToolDefinition
   private readonly states = new Map<Agent, AgentExposure>()
+  /**
+   * Memoized Skill-activation verdicts, released with the Session they describe.
+   * `snapshot` is the exact event snapshot the verdict came from: Session
+   * snapshots are stable per revision and replaced on every append, so an
+   * identical snapshot cannot be hiding new events. Doubles that grow an array
+   * in place are still caught by the length and last-event checks.
+   */
+  private readonly skillProbes = new WeakMap<Session, SkillActivationProbe>()
   private installed = false
 
   constructor(
@@ -152,13 +171,39 @@ export class ComputerUseExposure {
       },
       execute: (_args, exec): Promise<ComputerUseActivationResult> => {
         if (exec.agent === undefined) throw new Error(`${COMPUTER_USE_ACTIVATE}: an Agent Session is required`)
-        if (!hasLoadedComputerUseSkill(exec.agent.session)) {
+        if (!this.hasLoadedSkill(exec.agent.session)) {
           throw new Error(`${COMPUTER_USE_ACTIVATE}: load the ${COMPUTER_USE_SKILL_NAME} Skill first`)
         }
         return Promise.resolve(this.activate(exec.agent))
       },
       presentCall: () => ({ card: 'generic', title: 'Activate Computer Use', kind: 'execute' }),
     })
+  }
+
+  /**
+   * Cached form of `hasLoadedComputerUseSkill` for the per-call paths: the scan
+   * walks the whole Session log looking for a 7.5 KB needle, which must not run
+   * on every bash invocation. A verdict is reused only while the log is visibly
+   * unchanged, and any doubt falls back to a full rescan.
+   */
+  private hasLoadedSkill(session: Session): boolean {
+    const events = readSessionEvents(session)
+    const cached = this.skillProbes.get(session)
+    if (cached !== undefined) {
+      // Once activation is proven, later appends cannot unprove it.
+      if (cached.loaded) return true
+      if (cached.snapshot === events
+        && cached.eventCount === events.length
+        && cached.lastEvent === events[events.length - 1]) return false
+    }
+    const loaded = loadedFromEvents(events)
+    this.skillProbes.set(session, {
+      snapshot: events,
+      eventCount: events.length,
+      lastEvent: events[events.length - 1],
+      loaded,
+    })
+    return loaded
   }
 
   /** Install lifecycle listeners and adopt existing Agents. */
@@ -171,7 +216,7 @@ export class ComputerUseExposure {
       this.ctx.tools.guard((exec) => {
         if (exec.name !== 'bash'
           || exec.agent === undefined
-          || !hasLoadedComputerUseSkill(exec.agent.session)
+          || !this.hasLoadedSkill(exec.agent.session)
           || !adHocOcrCommand(exec.arguments)
           || !VISION_TOOL_NAMES.some(name => this.ctx.tools.get(name, exec.agent) !== undefined)) return undefined
         return 'Computer Use screenshot analysis must use the installed Vision Toolkit instead of a shell-built OCR stack. If vision_glance is absent, call the skill tool with {"name":"vision-tools"}; then pass the existing screenshot Artifact path to vision_glance, vision_ground, vision_detect, vision_crop, or vision_long_screenshot_ocr.'
@@ -204,7 +249,7 @@ export class ComputerUseExposure {
   private attach(agent: Agent): void {
     if (this.states.has(agent)) return
     this.states.set(agent, { active: false, toolDisposers: [], toolNames: [] })
-    if (hasLoadedComputerUseSkill(agent.session)) this.activate(agent)
+    if (this.hasLoadedSkill(agent.session)) this.activate(agent)
   }
 
   private activate(agent: Agent): ComputerUseActivationResult {

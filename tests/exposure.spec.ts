@@ -210,4 +210,55 @@ describe('progressive Computer Use exposure', () => {
     visionReady = false
     expect(guard?.({ name: 'bash', agent, arguments: { command: 'tesseract screenshot.png stdout' } })).toBeUndefined()
   })
+
+  it('memoizes the Skill-activation verdict per Session log revision', async () => {
+    let guard: ((exec: { name: string; agent?: typeof agent; arguments: unknown }) => string | undefined) | undefined
+    const agent = {
+      id: 'agent-5',
+      session: { id: 'session-5', snapshotEvents: () => tracked },
+      ctx: { tools: { register: () => () => {}, restrict: () => () => {} } },
+    }
+    const ctx = {
+      on: () => () => {},
+      agents: { list: () => [agent] },
+      tools: {
+        get(name: string) { return name === 'vision_glance' ? { name } : undefined },
+        guard(value: typeof guard) { guard = value; return () => { guard = undefined } },
+      },
+    }
+    // The guard runs on every bash call, so a repeated verdict must not walk the
+    // whole log again; the proxy counts how many events it actually reads.
+    const events: unknown[] = Array.from({ length: 200 }, (_value, index) => ({
+      type: 'user/message',
+      data: { source: { kind: 'user' }, content: [{ type: 'text', text: `note ${index}` }] },
+    }))
+    let reads = 0
+    const tracked = new Proxy(events, {
+      get(target, property, receiver) {
+        if (typeof property === 'string' && /^\d+$/u.test(property)) reads += 1
+        return Reflect.get(target, property, receiver)
+      },
+    })
+    new ComputerUseExposure(ctx as never, () => []).install()
+    const command = { command: 'tesseract screenshot.png stdout' }
+    expect(guard?.({ name: 'bash', agent, arguments: command })).toBeUndefined()
+    const scanned = reads
+    expect(guard?.({ name: 'bash', agent, arguments: command })).toBeUndefined()
+    expect(reads - scanned).toBeLessThanOrEqual(1)
+
+    // Growing the log in place must invalidate the cached verdict.
+    events.splice(1, 0, {
+      type: 'user/message',
+      data: {
+        source: { kind: 'skill-invocation', name: COMPUTER_USE_SKILL_NAME },
+        content: [{ type: 'text', text: COMPUTER_USE_SKILL_CONTENT }],
+      },
+    })
+    expect(guard?.({ name: 'bash', agent, arguments: command })).toContain('installed Vision Toolkit')
+
+    // Activation cannot be un-proven inside one Session, so the proven verdict
+    // is kept even after the log changes again.
+    events.length = 0
+    expect(guard?.({ name: 'bash', agent, arguments: command })).toContain('installed Vision Toolkit')
+  })
 })

@@ -11,7 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
 import type { CursorVisibility } from '../backend.ts'
 import type { ResolvedComputerUseConfig } from '../config.ts'
-import { ComputerUseError, computerUseError, type ComputerUseErrorCode } from '../errors.ts'
+import { ComputerUseError, computerUseError, computerUseErrorCode } from '../errors.ts'
 
 interface NativeManifest {
   schemaVersion: 1
@@ -28,7 +28,8 @@ interface NativeManifest {
 interface HelperFailure {
   ok: false
   error: {
-    code: ComputerUseErrorCode
+    /** Untrusted provider-reported string; validated against the public vocabulary before use. */
+    code: string
     message: string
   }
 }
@@ -39,6 +40,22 @@ interface HelperSuccess<T> {
 }
 
 type HelperEnvelope<T> = HelperFailure | HelperSuccess<T>
+
+/**
+ * Convert one provider-reported failure into a bounded {@link ComputerUseError}.
+ *
+ * The helper is a separate process, so its envelope is untrusted input: a code
+ * outside the published vocabulary becomes COMPUTER_PROVIDER_FAILURE with the
+ * raw code preserved in the model-facing message instead of being asserted into
+ * the union.
+ */
+function helperFailure(error: HelperFailure['error']): ComputerUseError {
+  const message = error.message.slice(0, 1000)
+  const code = computerUseErrorCode(error.code)
+  return code === undefined
+    ? new ComputerUseError('COMPUTER_PROVIDER_FAILURE', `native helper reported an unknown error code ${error.code}: ${message}`)
+    : new ComputerUseError(code, message)
+}
 
 export interface PreparedNativeDrag<T> {
   readonly result: Promise<T>
@@ -273,7 +290,7 @@ export class NativeHelperClient {
     } catch (error) {
       throw new ComputerUseError('COMPUTER_PROVIDER_FAILURE', 'native helper returned invalid JSON', { cause: error })
     }
-    if (envelope.ok !== true) throw new ComputerUseError(envelope.error.code, envelope.error.message.slice(0, 1000))
+    if (envelope.ok !== true) throw helperFailure(envelope.error)
     return envelope.value
   }
 
@@ -370,7 +387,7 @@ export class NativeHelperClient {
         } catch (error) {
           throw new ComputerUseError('COMPUTER_PROVIDER_FAILURE', 'native drag helper returned invalid JSON', { cause: error })
         }
-        if (envelope.ok !== true) throw new ComputerUseError(envelope.error.code, envelope.error.message.slice(0, 1000))
+        if (envelope.ok !== true) throw helperFailure(envelope.error)
         if (outcome.exitCode !== 0) {
           throw new ComputerUseError('COMPUTER_PROVIDER_FAILURE', `native drag helper exited ${String(outcome.exitCode)}`)
         }

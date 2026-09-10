@@ -50,6 +50,27 @@ function locatorKey(locator: readonly number[]): string {
   return locator.join('.')
 }
 
+/**
+ * Lazily built locator index per provider observation.
+ *
+ * Projection and rebinding describe every element of one observation against
+ * the same immutable element list, so rebuilding this map per element made both
+ * paths quadratic (500 elements meant 250k map inserts on the host thread that
+ * also drives the UI). Observations are replaced instead of mutated, and the
+ * WeakMap keeps the index alive exactly as long as the observation that owns it,
+ * so a replaced observation can never serve a stale index.
+ */
+const locatorIndexes = new WeakMap<BackendObservation, Map<string, BackendElement>>()
+
+function locatorIndex(observation: BackendObservation): Map<string, BackendElement> {
+  let index = locatorIndexes.get(observation)
+  if (index === undefined) {
+    index = new Map(observation.elements.map(candidate => [locatorKey(candidate.locator), candidate]))
+    locatorIndexes.set(observation, index)
+  }
+  return index
+}
+
 function sameLocator(left: readonly number[], right: readonly number[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
@@ -123,7 +144,7 @@ export function describeComputerTarget(
   element: BackendElement,
   observation: BackendObservation,
 ): ComputerTargetDescriptor {
-  const byLocator = new Map(observation.elements.map(candidate => [locatorKey(candidate.locator), candidate]))
+  const byLocator = locatorIndex(observation)
   const ancestors: AncestorFingerprintEntry[] = []
   for (let depth = 0; depth < element.locator.length; depth += 1) {
     const ancestor = byLocator.get(locatorKey(element.locator.slice(0, depth)))

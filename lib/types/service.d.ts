@@ -42,6 +42,12 @@ export declare class ComputerUseService extends Service {
     confirm(request: ComputerConfirmRequest, context: ComputerUseContext): Promise<ComputerConfirmation>;
     /** Execute one observation-bound action and always return a fresh post-action observation. */
     act(action: ComputerActionRequest, context: ComputerUseContext): Promise<ComputerActionResult>;
+    /**
+     * Reject an action whose arguments cannot be satisfied at all, before any
+     * lease, queue, or provider work. The model gets one immediate correction
+     * instead of a deadline that can never be met.
+     */
+    private validateAction;
     /** Keep this service's actions for one process ordered through post-action observation. */
     private actNow;
     private enqueueAction;

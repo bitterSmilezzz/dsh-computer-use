@@ -37,6 +37,8 @@ export interface ComputerUseConfig {
     actionTimeoutMs?: number;
     settleMs?: number;
     maxSettleMs?: number;
+    /** Upper bound for one computer_wait `timeoutMs`. Independent of the post-action settle budget. */
+    maxWaitMs?: number;
     maxNodes?: number;
     maxDepth?: number;
     maxTextBytes?: number;
@@ -59,6 +61,7 @@ export interface ResolvedComputerUseConfig {
     actionTimeoutMs: number;
     settleMs: number;
     maxSettleMs: number;
+    maxWaitMs: number;
     maxNodes: number;
     maxDepth: number;
     maxTextBytes: number;

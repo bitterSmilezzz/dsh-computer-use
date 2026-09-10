@@ -183,14 +183,14 @@ The Bundle initially contributes only `computer_use_activate`. Loading the Skill
 |---|---|
 | `computer_list_apps` | List bounded user-facing applications with bundle id, pid, frontmost state, and permission diagnostics |
 | `computer_observe` | Return a fresh full/diff Accessibility observation and optional screenshot Artifact |
-| `computer_click` | Prefer `AXPress`; accept an exact index or opaque target handle, with optional safe rebinding, before target-process coordinate fallback |
+| `computer_click` | Prefer `AXPress`; accept an exact index or opaque target handle, with optional safe rebinding, before target-process coordinate fallback; optional modifiers hold command/control/option/shift for a real pointer click |
 | `computer_set_value` | Set or clear an editable Accessibility value through an exact index or opaque target handle without using the clipboard |
 | `computer_type_text` | Insert Unicode through Accessibility when supported, with a process-targeted keyboard fallback |
 | `computer_press_key` | Send one key from a finite vocabulary to the selected process, with optional modifiers |
 | `computer_scroll` | Send bounded directional scrolling to the selected process and window at a resolved element or window/screen coordinate |
-| `computer_drag` | Drag between two window/screen points in the referenced observation |
+| `computer_drag` | Drag between two window/screen points in the referenced observation, optionally holding command/control/option/shift for the whole gesture |
 | `computer_perform_action` | Execute one Accessibility action advertised by an exact or safely rebound selected element |
-| `computer_wait` | Poll one bounded text/role/title condition and return fresh state without modifying the app |
+| `computer_wait` | Wait for one bounded text/role/title/value condition, or for that match to disappear with `absent: true`, then return fresh state without modifying the app |
 | `computer_confirm` | Obtain a one-use token bound to one exact sensitive action |
 
 No Tool accepts AppleScript, JXA, shell, Swift, Objective-C, native selectors, arbitrary Accessibility constants, or source code.
@@ -234,6 +234,7 @@ The committed helper is an ad-hoc-signed universal `arm64` + `x86_64` binary tar
 | `actionTimeoutMs` | Hard native action timeout from `1000` to `120000` ms |
 | `settleMs` | Interval between post-action state checks from `0` to `10000` ms |
 | `maxSettleMs` | Maximum post-action settlement budget from `100` to `60000` ms |
+| `maxWaitMs` | Ceiling for one `computer_wait` timeout from `100` to `600000` ms; default `30000`, and a configured value below `maxSettleMs` is raised to it (an omitted timeout still defaults to `maxSettleMs`) |
 | `maxNodes` / `maxDepth` / `maxTextBytes` | Accessibility traversal and model-visible text bounds |
 | `maxScreenshotBytes` | Maximum PNG Artifact size |
 | `artifactRoot` | Workspace-relative screenshot directory |

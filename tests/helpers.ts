@@ -13,9 +13,9 @@ import type {
   BackendObserveOptions,
   ComputerUseBackend,
   CursorVisibility,
-} from '../src/backend.ts'
-import { ComputerUseError } from '../src/errors.ts'
-import type { ComputerAppIdentity, ComputerAppSelector, ComputerAppSummary } from '../src/types.ts'
+} from '../src/binding/binding.port.ts'
+import { ComputerUseError } from '../src/charter/charter.fault.ts'
+import type { ComputerAppIdentity, ComputerAppSelector, ComputerAppSummary } from '../src/charter/charter.index.ts'
 
 export async function temporaryDirectory(prefix: string): Promise<{ path: string; cleanup: () => Promise<void> }> {
   const path = await mkdtemp(join(tmpdir(), prefix))

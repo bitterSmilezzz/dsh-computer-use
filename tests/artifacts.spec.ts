@@ -1,7 +1,7 @@
 import { mkdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { allocateScreenshotPath, COMPUTER_SCREENSHOT_DESCRIPTION, describeScreenshot } from '../src/artifacts.ts'
+import { allocateScreenshotPath, COMPUTER_SCREENSHOT_DESCRIPTION, describeScreenshot } from '../src/optics/optics.artifact.ts'
 import { temporaryDirectory } from './helpers.ts'
 
 describe('screenshot artifacts', () => {

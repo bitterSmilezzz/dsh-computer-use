@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Service } from '@deepseek-ai/cordis'
-import ComputerUseBundle from '../src/index.ts'
-import { MacOSComputerUseProvider } from '../src/providers/macos.ts'
+import ComputerUseBundle from '../src/conductor/conductor.bundle.ts'
+import { MacOSComputerUseProvider } from '../src/binding/binding.macos-provider.ts'
 
 const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
 if (platformDescriptor === undefined) throw new Error('process.platform descriptor is missing')

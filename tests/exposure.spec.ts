@@ -4,8 +4,8 @@ import {
   COMPUTER_USE_ACTIVATE,
   ComputerUseExposure,
   hasLoadedComputerUseSkill,
-} from '../src/exposure.ts'
-import { COMPUTER_USE_SKILL_CONTENT, COMPUTER_USE_SKILL_NAME } from '../src/skill.ts'
+} from '../src/playbook/playbook.guard.ts'
+import { COMPUTER_USE_SKILL_CONTENT, COMPUTER_USE_SKILL_NAME } from '../src/playbook/playbook.skill.ts'
 
 function loadedSession(): { events: unknown[] } {
   return {

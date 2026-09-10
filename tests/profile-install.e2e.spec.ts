@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
-import { COMPUTER_USE_ACTIVATE } from '../src/exposure.ts'
+import { COMPUTER_USE_ACTIVATE } from '../src/playbook/playbook.guard.ts'
 
 const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const HELPER = join(ROOT, 'native', 'macos', 'bin', 'dsh-computer-use-helper')

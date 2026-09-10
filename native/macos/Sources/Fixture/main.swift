@@ -1,8 +1,22 @@
 import AppKit
 import Foundation
 
-private final class InputProbeView: NSView {
-    var onEvent: ((String) -> Void)?
+/// A pointer event the probe view saw, tagged with the transcript name the e2e
+/// lane reads back.
+private enum ProbeEvent: String {
+    case down = "pointer down"
+    case drag = "pointer drag"
+    case up = "pointer up"
+    case upWithoutDown = "pointer up without down"
+    case scroll = "pointer scroll"
+}
+
+/// The large drop target in the middle of the fixture.
+///
+/// Pointer input is routed here by the helper, so the view only has to report
+/// what arrived; all bookkeeping lives in the delegate.
+private final class PointerProbeView: NSView {
+    var onEvent: ((ProbeEvent) -> Void)?
     private var dragging = false
 
     override var isFlipped: Bool { true }
@@ -27,163 +41,148 @@ private final class InputProbeView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         dragging = true
-        onEvent?("pointer down")
+        onEvent?(.down)
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard dragging else { return }
-        onEvent?("pointer drag")
+        onEvent?(.drag)
     }
 
     override func mouseUp(with event: NSEvent) {
         let wasDragging = dragging
         dragging = false
-        onEvent?(wasDragging ? "pointer up" : "pointer up without down")
+        onEvent?(wasDragging ? .up : .upWithoutDown)
     }
 
     override func scrollWheel(with event: NSEvent) {
-        onEvent?("pointer scroll")
+        onEvent?(.scroll)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        let text = "Targeted pointer probe"
+        let caption = "Targeted pointer probe"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 13, weight: .medium),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]
-        let size = text.size(withAttributes: attributes)
-        text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attributes)
+        let captionSize = caption.size(withAttributes: attributes)
+        caption.draw(
+            at: NSPoint(x: (bounds.width - captionSize.width) / 2, y: (bounds.height - captionSize.height) / 2),
+            withAttributes: attributes
+        )
     }
 }
 
-private final class FixtureDelegate: NSObject, NSApplicationDelegate {
-    private var window: NSWindow!
-    private var textField: NSTextField!
-    private var secureField: NSSecureTextField!
-    private var checkbox: NSButton!
-    private var popup: NSPopUpButton!
-    private var slider: NSSlider!
-    private var statusLabel: NSTextField!
-    private var inputProbe: InputProbeView!
-    private var stack: NSStackView!
-    private var insertedHarmlessSibling = false
-    private var keyMonitor: Any?
-    private var reorderTimer: Timer?
-    private var activationTimer: Timer?
-    private var activationReleaseTimer: Timer?
-    private var activationHoldUntil: Date?
-    private var pointerClickCount = 0
-    private var pointerScrollCount = 0
-    private var pointerDragCount = 0
-    private var pointerMouseDownCount = 0
-    private var pointerMouseUpCount = 0
-    private var pointerDragGestureCount = 0
-    private var activeDragGesture = false
-    private var activationCount = 0
-    private let transcriptPath: String?
-    private let reorderTriggerPath: String?
-    private let activationTriggerPath: String?
-    private let activationReleaseTriggerPath: String?
-    private let activationOnly: Bool
-    private let launchInBackground: Bool
+/// Command-line switches the e2e lane launches the fixture with.
+private struct FixtureLaunchOptions {
+    let transcriptPath: String?
+    let reorderTriggerPath: String?
+    let activationTriggerPath: String?
+    let activationReleaseTriggerPath: String?
+    let activationOnly: Bool
+    let launchInBackground: Bool
 
-    override init() {
-        let arguments = ProcessInfo.processInfo.arguments
-        if let index = arguments.firstIndex(of: "--transcript"), arguments.indices.contains(index + 1) {
-            transcriptPath = arguments[index + 1]
-        } else {
-            transcriptPath = nil
+    init(_ arguments: [String]) {
+        func value(after flag: String) -> String? {
+            guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+            return arguments[index + 1]
         }
-        if let index = arguments.firstIndex(of: "--reorder-trigger"), arguments.indices.contains(index + 1) {
-            reorderTriggerPath = arguments[index + 1]
-        } else {
-            reorderTriggerPath = nil
-        }
-        if let index = arguments.firstIndex(of: "--activation-trigger"), arguments.indices.contains(index + 1) {
-            activationTriggerPath = arguments[index + 1]
-        } else {
-            activationTriggerPath = nil
-        }
-        if let index = arguments.firstIndex(of: "--activation-release-trigger"), arguments.indices.contains(index + 1) {
-            activationReleaseTriggerPath = arguments[index + 1]
-        } else {
-            activationReleaseTriggerPath = nil
-        }
+        transcriptPath = value(after: "--transcript")
+        reorderTriggerPath = value(after: "--reorder-trigger")
+        activationTriggerPath = value(after: "--activation-trigger")
+        activationReleaseTriggerPath = value(after: "--activation-release-trigger")
         activationOnly = arguments.contains("--activation-only")
         launchInBackground = arguments.contains("--background")
-        super.init()
+    }
+}
+
+/// Rewrites the whole transcript file on every event.
+///
+/// The keys are wire format: the e2e lane parses this JSON to decide what the
+/// fixture actually did with the input it received.
+private struct FixtureTranscript {
+    let path: String?
+
+    func record(event: String, fields: [String: Any]) {
+        guard let path else { return }
+        var payload = fields
+        payload["event"] = event
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
+        try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
+    }
+}
+
+/// Pointer and activation bookkeeping the transcript reports.
+private struct FixtureActivity {
+    var click = 0
+    var scroll = 0
+    var drag = 0
+    var mouseDown = 0
+    var mouseUp = 0
+    var dragGestures = 0
+    var activation = 0
+    /// True between the pointer going down and coming up inside the probe.
+    var dragging = false
+}
+
+/// The checkbox the fixture has to be able to rebuild: inserting the harmless
+/// sibling control replaces it in the stack.
+private func makeOptionCheckbox(state: NSControl.StateValue, owner: FixtureDelegate) -> NSButton {
+    let checkbox = NSButton(
+        checkboxWithTitle: "Enable deterministic option",
+        target: owner,
+        action: #selector(FixtureDelegate.toggleCheckbox)
+    )
+    checkbox.state = state
+    checkbox.setAccessibilityLabel("Enable deterministic option")
+    checkbox.identifier = NSUserInterfaceItemIdentifier("fixture.checkbox")
+    return checkbox
+}
+
+/// The fixture window and every control the e2e lane addresses.
+///
+/// Labels and identifiers are wire format: observations select elements by them,
+/// so they stay exactly as the tests expect.
+private final class FixtureScene {
+    let window: NSWindow
+    let textField: NSTextField
+    let secureField: NSSecureTextField
+    let popup: NSPopUpButton
+    let slider: NSSlider
+    let statusLabel: NSTextField
+    let probe: PointerProbeView
+    let stack: NSStackView
+    var checkbox: NSButton
+
+    private init(
+        window: NSWindow,
+        textField: NSTextField,
+        secureField: NSSecureTextField,
+        popup: NSPopUpButton,
+        slider: NSSlider,
+        statusLabel: NSTextField,
+        probe: PointerProbeView,
+        stack: NSStackView,
+        checkbox: NSButton
+    ) {
+        self.window = window
+        self.textField = textField
+        self.secureField = secureField
+        self.popup = popup
+        self.slider = slider
+        self.statusLabel = statusLabel
+        self.probe = probe
+        self.stack = stack
+        self.checkbox = checkbox
     }
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        buildWindow()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 36 else { return event }
-            self?.applyValues()
-            return nil
-        }
-        if launchInBackground {
-            window.orderFrontRegardless()
-            window.orderBack(nil)
-        } else {
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-        }
-        writeTranscript(event: "ready")
-        if activationOnly {
-            activationHoldUntil = Date().addingTimeInterval(5)
-        }
-        if let reorderTriggerPath {
-            reorderTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
-                guard FileManager.default.fileExists(atPath: reorderTriggerPath) else { return }
-                timer.invalidate()
-                self?.insertHarmlessSibling()
-            }
-        }
-        if activationTriggerPath != nil || activationOnly {
-            activationTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-                guard let self else { return }
-                if let activationTriggerPath,
-                   FileManager.default.fileExists(atPath: activationTriggerPath) {
-                    try? FileManager.default.removeItem(atPath: activationTriggerPath)
-                    self.activationHoldUntil = Date().addingTimeInterval(5)
-                }
-                guard let holdUntil = self.activationHoldUntil else { return }
-                guard Date() < holdUntil else {
-                    self.activationHoldUntil = nil
-                    return
-                }
-                NSApplication.shared.activate(ignoringOtherApps: true)
-                self.window.makeKeyAndOrderFront(nil)
-            }
-        }
-        if let activationReleaseTriggerPath {
-            activationReleaseTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-                guard FileManager.default.fileExists(atPath: activationReleaseTriggerPath) else { return }
-                try? FileManager.default.removeItem(atPath: activationReleaseTriggerPath)
-                self?.activationHoldUntil = nil
-            }
-        }
+    func setStatus(_ text: String) {
+        statusLabel.stringValue = text
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {
-        activationCount += 1
-        writeTranscript(event: "activated")
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-        reorderTimer?.invalidate()
-        activationTimer?.invalidate()
-        activationReleaseTimer?.invalidate()
-    }
-
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
-    }
-
-    private func buildWindow() {
-        window = NSWindow(
+    static func build(owner: FixtureDelegate) -> FixtureScene {
+        let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
@@ -197,87 +196,58 @@ private final class FixtureDelegate: NSObject, NSApplicationDelegate {
         content.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = content
 
-        let title = NSTextField(labelWithString: "Computer Use deterministic fixture")
-        title.font = .systemFont(ofSize: 22, weight: .semibold)
-        title.setAccessibilityLabel("Fixture title")
+        let heading = NSTextField(labelWithString: "Computer Use deterministic fixture")
+        heading.font = .systemFont(ofSize: 22, weight: .semibold)
+        heading.setAccessibilityLabel("Fixture title")
 
-        textField = NSTextField(string: "initial text")
+        let textField = NSTextField(string: "initial text")
         textField.placeholderString = "Editable text"
         textField.setAccessibilityLabel("Editable text")
         textField.identifier = NSUserInterfaceItemIdentifier("fixture.text")
-        textField.target = self
-        textField.action = #selector(applyValues)
+        textField.target = owner
+        textField.action = #selector(FixtureDelegate.applyValues)
 
-        secureField = NSSecureTextField(string: "fixture-secret")
+        let secureField = NSSecureTextField(string: "fixture-secret")
         secureField.placeholderString = "Secure text"
         secureField.setAccessibilityLabel("Secure text")
         secureField.identifier = NSUserInterfaceItemIdentifier("fixture.secure")
 
-        checkbox = makeCheckbox(state: .off)
+        let checkbox = makeOptionCheckbox(state: .off, owner: owner)
 
-        popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
         popup.addItems(withTitles: ["Alpha", "Beta", "Gamma"])
         popup.selectItem(at: 0)
-        popup.target = self
-        popup.action = #selector(selectPopup)
+        popup.target = owner
+        popup.action = #selector(FixtureDelegate.selectPopup)
         popup.setAccessibilityLabel("Fixture selection")
 
-        slider = NSSlider(value: 25, minValue: 0, maxValue: 100, target: self, action: #selector(changeSlider))
+        let slider = NSSlider(value: 25, minValue: 0, maxValue: 100, target: owner, action: #selector(FixtureDelegate.changeSlider))
         slider.setAccessibilityLabel("Fixture slider")
 
-        let apply = NSButton(title: "Apply", target: self, action: #selector(applyValues))
+        let apply = NSButton(title: "Apply", target: owner, action: #selector(FixtureDelegate.applyValues))
         apply.bezelStyle = .rounded
         apply.keyEquivalent = "\r"
         apply.setAccessibilityLabel("Apply fixture values")
 
-        let delayed = NSButton(title: "Delayed update", target: self, action: #selector(delayedUpdate))
+        let delayed = NSButton(title: "Delayed update", target: owner, action: #selector(FixtureDelegate.delayedUpdate))
         delayed.bezelStyle = .rounded
         delayed.setAccessibilityLabel("Start delayed update")
 
-        let modal = NSButton(title: "Show modal", target: self, action: #selector(showModal))
+        let modal = NSButton(title: "Show modal", target: owner, action: #selector(FixtureDelegate.showModal))
         modal.bezelStyle = .rounded
         modal.setAccessibilityLabel("Show fixture modal")
 
-        statusLabel = NSTextField(labelWithString: "Status: ready")
+        let statusLabel = NSTextField(labelWithString: "Status: ready")
         statusLabel.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         statusLabel.setAccessibilityLabel("Fixture status")
         statusLabel.identifier = NSUserInterfaceItemIdentifier("fixture.status")
 
-        inputProbe = InputProbeView(frame: .zero)
-        inputProbe.translatesAutoresizingMaskIntoConstraints = false
-        inputProbe.heightAnchor.constraint(equalToConstant: 54).isActive = true
-        inputProbe.onEvent = { [weak self] event in
-            guard let self else { return }
-            switch event {
-            case "pointer down":
-                self.pointerMouseDownCount += 1
-                self.activeDragGesture = false
-                return
-            case "pointer drag":
-                self.pointerDragCount += 1
-                self.activeDragGesture = true
-                self.statusLabel.stringValue = "Status: pointer drag"
-            case "pointer up":
-                self.pointerMouseUpCount += 1
-                if self.activeDragGesture {
-                    self.pointerDragGestureCount += 1
-                    self.statusLabel.stringValue = "Status: pointer drag"
-                } else {
-                    self.pointerClickCount += 1
-                    self.statusLabel.stringValue = "Status: pointer click"
-                }
-                self.activeDragGesture = false
-            case "pointer scroll":
-                self.pointerScrollCount += 1
-                self.statusLabel.stringValue = "Status: pointer scroll"
-            default: break
-            }
-            self.writeTranscript(event: event)
-        }
+        let probe = PointerProbeView(frame: .zero)
+        probe.translatesAutoresizingMaskIntoConstraints = false
+        probe.heightAnchor.constraint(equalToConstant: 54).isActive = true
 
-        let longText = (1...80).map { "Scrollable row \($0)" }.joined(separator: "\n")
         let textView = NSTextView()
-        textView.string = longText
+        textView.string = (1...80).map { "Scrollable row \($0)" }.joined(separator: "\n")
         textView.isEditable = false
         textView.isSelectable = true
         textView.setAccessibilityLabel("Scrollable fixture rows")
@@ -301,7 +271,7 @@ private final class FixtureDelegate: NSObject, NSApplicationDelegate {
         buttons.orientation = .horizontal
         buttons.spacing = 10
 
-        stack = NSStackView(views: [title, fields, checkbox, buttons, statusLabel, inputProbe, scroll])
+        let stack = NSStackView(views: [heading, fields, checkbox, buttons, statusLabel, probe, scroll])
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -313,100 +283,232 @@ private final class FixtureDelegate: NSObject, NSApplicationDelegate {
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -24),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            inputProbe.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            probe.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         window.makeFirstResponder(textField)
+
+        return FixtureScene(
+            window: window,
+            textField: textField,
+            secureField: secureField,
+            popup: popup,
+            slider: slider,
+            statusLabel: statusLabel,
+            probe: probe,
+            stack: stack,
+            checkbox: checkbox
+        )
+    }
+}
+
+private final class FixtureDelegate: NSObject, NSApplicationDelegate {
+    private let options: FixtureLaunchOptions
+    private let transcript: FixtureTranscript
+    private var scene: FixtureScene!
+    private var activity = FixtureActivity()
+    private var insertedHarmlessSibling = false
+    private var keyMonitor: Any?
+    private var reorderTimer: Timer?
+    private var activationTimer: Timer?
+    private var activationReleaseTimer: Timer?
+    private var activationHoldUntil: Date?
+
+    init(options: FixtureLaunchOptions) {
+        self.options = options
+        self.transcript = FixtureTranscript(path: options.transcriptPath)
+        super.init()
     }
 
-    @objc private func applyValues() {
-        statusLabel.stringValue = "Status: applied \(textField.stringValue)"
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let scene = FixtureScene.build(owner: self)
+        scene.probe.onEvent = { [weak self] event in self?.handleProbe(event) }
+        self.scene = scene
+
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 36 else { return event }
+            self?.applyValues()
+            return nil
+        }
+
+        if options.launchInBackground {
+            scene.window.orderFrontRegardless()
+            scene.window.orderBack(nil)
+        } else {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            scene.window.makeKeyAndOrderFront(nil)
+        }
+
+        writeTranscript(event: "ready")
+        if options.activationOnly {
+            activationHoldUntil = Date().addingTimeInterval(5)
+        }
+        startTriggerTimers()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        activity.activation += 1
+        writeTranscript(event: "activated")
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        reorderTimer?.invalidate()
+        activationTimer?.invalidate()
+        activationReleaseTimer?.invalidate()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+
+    /// Files the e2e lane drops to make the fixture do something on demand. Each
+    /// trigger is consumed (deleted) the moment it is seen.
+    private func startTriggerTimers() {
+        if let reorderTriggerPath = options.reorderTriggerPath {
+            reorderTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
+                guard FileManager.default.fileExists(atPath: reorderTriggerPath) else { return }
+                timer.invalidate()
+                self?.insertHarmlessSibling()
+            }
+        }
+        let activationTriggerPath = options.activationTriggerPath
+        if activationTriggerPath != nil || options.activationOnly {
+            activationTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+                guard let self else { return }
+                if let activationTriggerPath,
+                   FileManager.default.fileExists(atPath: activationTriggerPath) {
+                    try? FileManager.default.removeItem(atPath: activationTriggerPath)
+                    self.activationHoldUntil = Date().addingTimeInterval(5)
+                }
+                guard let holdUntil = self.activationHoldUntil else { return }
+                guard Date() < holdUntil else {
+                    self.activationHoldUntil = nil
+                    return
+                }
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                self.scene.window.makeKeyAndOrderFront(nil)
+            }
+        }
+        if let activationReleaseTriggerPath = options.activationReleaseTriggerPath {
+            activationReleaseTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+                guard FileManager.default.fileExists(atPath: activationReleaseTriggerPath) else { return }
+                try? FileManager.default.removeItem(atPath: activationReleaseTriggerPath)
+                self?.activationHoldUntil = nil
+            }
+        }
+    }
+
+    /// The pointer half of the transcript. A press that has not been released
+    /// yet is not an event of its own; everything the probe reports afterwards is.
+    private func handleProbe(_ event: ProbeEvent) {
+        switch event {
+        case .down:
+            activity.mouseDown += 1
+            activity.dragging = false
+            return
+        case .drag:
+            activity.drag += 1
+            activity.dragging = true
+            scene.setStatus("Status: pointer drag")
+        case .up:
+            activity.mouseUp += 1
+            if activity.dragging {
+                activity.dragGestures += 1
+                scene.setStatus("Status: pointer drag")
+            } else {
+                activity.click += 1
+                scene.setStatus("Status: pointer click")
+            }
+            activity.dragging = false
+        case .scroll:
+            activity.scroll += 1
+            scene.setStatus("Status: pointer scroll")
+        case .upWithoutDown:
+            break
+        }
+        writeTranscript(event: event.rawValue)
+    }
+
+    @objc fileprivate func applyValues() {
+        scene.setStatus("Status: applied \(scene.textField.stringValue)")
         writeTranscript(event: "apply")
     }
 
-    @objc private func toggleCheckbox() {
-        statusLabel.stringValue = checkbox.state == .on ? "Status: option enabled" : "Status: option disabled"
+    @objc fileprivate func toggleCheckbox() {
+        scene.setStatus(scene.checkbox.state == .on ? "Status: option enabled" : "Status: option disabled")
         writeTranscript(event: "checkbox")
     }
 
-    @objc private func selectPopup() {
-        statusLabel.stringValue = "Status: selected \(popup.titleOfSelectedItem ?? "")"
+    @objc fileprivate func selectPopup() {
+        scene.setStatus("Status: selected \(scene.popup.titleOfSelectedItem ?? "")")
         writeTranscript(event: "selection")
     }
 
-    @objc private func changeSlider() {
-        statusLabel.stringValue = "Status: slider \(Int(slider.doubleValue))"
+    @objc fileprivate func changeSlider() {
+        scene.setStatus("Status: slider \(Int(scene.slider.doubleValue))")
         writeTranscript(event: "slider")
     }
 
-    @objc private func delayedUpdate() {
-        statusLabel.stringValue = "Status: waiting"
+    @objc fileprivate func delayedUpdate() {
+        scene.setStatus("Status: waiting")
         writeTranscript(event: "delay-start")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.statusLabel.stringValue = "Status: delayed complete"
+            self?.scene.setStatus("Status: delayed complete")
             self?.writeTranscript(event: "delay-complete")
         }
     }
 
+    /// Inserts one extra control in front of the checkbox and rebuilds the
+    /// checkbox in place, so an observation taken before and after has to notice
+    /// that the element it named has moved.
     private func insertHarmlessSibling() {
         guard !insertedHarmlessSibling else { return }
         insertedHarmlessSibling = true
-        let checkboxState = checkbox.state
-        stack.removeArrangedSubview(checkbox)
-        checkbox.removeFromSuperview()
-        let label = NSTextField(labelWithString: "Harmless dynamic sibling")
-        label.setAccessibilityLabel("Harmless dynamic sibling")
-        label.identifier = NSUserInterfaceItemIdentifier("fixture.harmless-sibling")
-        stack.insertArrangedSubview(label, at: 2)
-        checkbox = makeCheckbox(state: checkboxState)
-        stack.insertArrangedSubview(checkbox, at: 3)
-        statusLabel.stringValue = "Status: harmless sibling inserted"
+        let checkboxState = scene.checkbox.state
+        scene.stack.removeArrangedSubview(scene.checkbox)
+        scene.checkbox.removeFromSuperview()
+        let sibling = NSTextField(labelWithString: "Harmless dynamic sibling")
+        sibling.setAccessibilityLabel("Harmless dynamic sibling")
+        sibling.identifier = NSUserInterfaceItemIdentifier("fixture.harmless-sibling")
+        scene.stack.insertArrangedSubview(sibling, at: 2)
+        scene.checkbox = makeOptionCheckbox(state: checkboxState, owner: self)
+        scene.stack.insertArrangedSubview(scene.checkbox, at: 3)
+        scene.setStatus("Status: harmless sibling inserted")
         writeTranscript(event: "reorder")
     }
 
-    private func makeCheckbox(state: NSControl.StateValue) -> NSButton {
-        let value = NSButton(checkboxWithTitle: "Enable deterministic option", target: self, action: #selector(toggleCheckbox))
-        value.state = state
-        value.setAccessibilityLabel("Enable deterministic option")
-        value.identifier = NSUserInterfaceItemIdentifier("fixture.checkbox")
-        return value
-    }
-
-    @objc private func showModal() {
+    @objc fileprivate func showModal() {
         let alert = NSAlert()
         alert.messageText = "Fixture modal"
         alert.informativeText = "This modal exists for deterministic Accessibility observation."
         alert.addButton(withTitle: "Confirm")
-        alert.beginSheetModal(for: window) { [weak self] _ in
-            self?.statusLabel.stringValue = "Status: modal confirmed"
+        alert.beginSheetModal(for: scene.window) { [weak self] _ in
+            self?.scene.setStatus("Status: modal confirmed")
             self?.writeTranscript(event: "modal")
         }
     }
 
     private func writeTranscript(event: String) {
-        guard let transcriptPath else { return }
-        let payload: [String: Any] = [
-            "event": event,
-            "text": textField?.stringValue ?? "",
-            "secureLength": secureField?.stringValue.count ?? 0,
-            "checked": checkbox?.state == .on,
-            "selection": popup?.titleOfSelectedItem ?? "",
-            "slider": Int(slider?.doubleValue ?? 0),
-            "status": statusLabel?.stringValue ?? "",
-            "pointerClickCount": pointerClickCount,
-            "pointerScrollCount": pointerScrollCount,
-            "pointerDragCount": pointerDragCount,
-            "pointerMouseDownCount": pointerMouseDownCount,
-            "pointerMouseUpCount": pointerMouseUpCount,
-            "pointerDragGestureCount": pointerDragGestureCount,
-            "activationCount": activationCount,
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
-        try? data.write(to: URL(fileURLWithPath: transcriptPath), options: .atomic)
+        transcript.record(event: event, fields: [
+            "text": scene.textField.stringValue,
+            "secureLength": scene.secureField.stringValue.count,
+            "checked": scene.checkbox.state == .on,
+            "selection": scene.popup.titleOfSelectedItem ?? "",
+            "slider": Int(scene.slider.doubleValue),
+            "status": scene.statusLabel.stringValue,
+            "pointerClickCount": activity.click,
+            "pointerScrollCount": activity.scroll,
+            "pointerDragCount": activity.drag,
+            "pointerMouseDownCount": activity.mouseDown,
+            "pointerMouseUpCount": activity.mouseUp,
+            "pointerDragGestureCount": activity.dragGestures,
+            "activationCount": activity.activation,
+        ])
     }
 }
 
 let app = NSApplication.shared
-private let delegate = FixtureDelegate()
+private let delegate = FixtureDelegate(options: FixtureLaunchOptions(ProcessInfo.processInfo.arguments))
 app.delegate = delegate
 app.setActivationPolicy(.regular)
 app.run()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveConfig } from '../src/config.ts'
+import { resolveConfig } from '../src/tuning/tuning.normalize.ts'
 
 describe('Computer Use configuration', () => {
   it('resolves bounded defaults and promotes control grants to read access', () => {

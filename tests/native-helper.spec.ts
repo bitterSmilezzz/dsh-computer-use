@@ -7,8 +7,8 @@ import { PassThrough, Writable } from 'node:stream'
 import { promisify } from 'node:util'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { describe, expect, it, vi } from 'vitest'
-import { resolveConfig } from '../src/config.ts'
-import { NativeHelperClient } from '../src/providers/native-helper.ts'
+import { resolveConfig } from '../src/tuning/tuning.normalize.ts'
+import { NativeHelperClient } from '../src/binding/binding.native-transport.ts'
 import { temporaryDirectory } from './helpers.ts'
 
 const execFileAsync = promisify(execFile)
@@ -31,6 +31,18 @@ async function sourceHash(): Promise<string> {
     hash.update('\0')
   }
   return hash.digest('hex')
+}
+
+/**
+ * Every Swift file the helper target compiles, concatenated — the same source
+ * set `check-native.mjs` hashes. The helper is split across `Sources/Helper`,
+ * so implementation-shape assertions read the whole module rather than
+ * `main.swift` alone.
+ */
+async function helperSources(): Promise<string> {
+  const directory = join(NATIVE, 'Sources', 'Helper')
+  const names = (await readdir(directory)).filter(name => name.endsWith('.swift')).sort()
+  return (await Promise.all(names.map(name => readFile(join(directory, name), 'utf8')))).join('\n')
 }
 
 function reader(text: string) {
@@ -173,9 +185,9 @@ function dragHandle() {
 
 describe.skipIf(process.platform !== 'darwin')('managed native helper', () => {
   it('contains no global pointer warp or HID-post implementation', async () => {
-    const helperSource = await readFile(join(NATIVE, 'Sources', 'Helper', 'main.swift'), 'utf8')
+    const helperSource = await helperSources()
     const pointerSource = await readFile(join(NATIVE, 'Sources', 'Helper', 'TargetedPointer.swift'), 'utf8')
-    const combined = `${helperSource}\n${pointerSource}`
+    const combined = helperSource
     expect(combined).not.toMatch(/CGWarpMouseCursorPosition|CGAssociateMouseAndMouseCursorPosition/u)
     expect(combined).not.toMatch(/\.post\s*\(\s*tap:|cghidEventTap/u)
     expect(pointerSource).toContain('SLEventPostToPid')

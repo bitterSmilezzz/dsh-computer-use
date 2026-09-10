@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { COMPUTER_SCREENSHOT_DESCRIPTION } from '../src/artifacts.ts'
-import { createComputerUseTools } from '../src/tools.ts'
-import type { ComputerObservation } from '../src/types.ts'
-import { ComputerObservationId, ComputerTargetHandle } from '../src/types.ts'
+import { COMPUTER_SCREENSHOT_DESCRIPTION } from '../src/optics/optics.artifact.ts'
+import { createComputerUseTools } from '../src/toolbelt/toolbelt.tools.ts'
+import type { ComputerObservation } from '../src/charter/charter.index.ts'
+import { ComputerObservationId, ComputerTargetHandle } from '../src/charter/charter.index.ts'
 import { FIXTURE_APP } from './helpers.ts'
 
 function observation(withScreenshot = false): ComputerObservation {

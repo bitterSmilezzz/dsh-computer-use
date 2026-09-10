@@ -3,11 +3,12 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalOutcome, ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
-import { resolveConfig, type ComputerUseConfig } from '../src/config.ts'
-import type { ComputerUseSessionState } from '../src/leases.ts'
-import type { BackendObservation, BackendObserveOptions } from '../src/backend.ts'
-import { ComputerUseError } from '../src/errors.ts'
-import { ComputerUseService } from '../src/service.ts'
+import { resolveConfig } from '../src/tuning/tuning.normalize.ts'
+import type { ComputerUseConfig } from '../src/tuning/tuning.schema.ts'
+import type { ComputerUseSessionState } from '../src/custody/custody.lease-state.ts'
+import type { BackendObservation, BackendObserveOptions } from '../src/binding/binding.port.ts'
+import { ComputerUseError } from '../src/charter/charter.fault.ts'
+import { ComputerUseService } from '../src/conductor/conductor.service.ts'
 import {
   ComputerObservationId,
   ComputerConfirmationToken,
@@ -15,7 +16,7 @@ import {
   type ComputerActionRequest,
   type ComputerAppIdentity,
   type ComputerUseContext,
-} from '../src/types.ts'
+} from '../src/charter/charter.index.ts'
 import { FakeBackend, FIXTURE_APP, backendObservation, fakeAgent, temporaryDirectory } from './helpers.ts'
 
 class TestComputerUseService extends ComputerUseService {

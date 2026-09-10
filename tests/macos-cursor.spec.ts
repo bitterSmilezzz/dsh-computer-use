@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { BackendActionRequest, BackendActionResult, BackendCursorAction } from '../src/backend.ts'
-import { resolveConfig } from '../src/config.ts'
-import { MacOSBackend } from '../src/providers/macos.ts'
+import type { BackendActionRequest, BackendActionResult, BackendCursorAction } from '../src/binding/binding.port.ts'
+import { resolveConfig } from '../src/tuning/tuning.normalize.ts'
+import { MacOSBackend } from '../src/binding/binding.macos.ts'
 
 const target = {
   targetPid: 7331,

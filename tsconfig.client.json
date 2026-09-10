@@ -7,6 +7,9 @@
     "jsx": "react-jsx",
     "declaration": true,
     "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "sourceMap": true,
     "skipLibCheck": true,
     "strict": true,
@@ -17,9 +20,8 @@
       "node",
       "react"
     ],
-    "rootDir": "src/client",
-    "outDir": ".client-build",
-    "declarationDir": "lib/types/client",
+    "rootDir": "src",
+    "declarationDir": "lib/types",
     "noEmitOnError": true
   },
   "include": [

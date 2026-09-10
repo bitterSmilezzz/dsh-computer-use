@@ -37,9 +37,13 @@ describe('published package layout', () => {
     expect(PACKAGE.main).toBe('lib/index.js')
     expect(PACKAGE.types).toBe('lib/types/index.d.ts')
     expect(PACKAGE.exports['.']).toEqual({ types: './lib/types/index.d.ts', default: './lib/index.js' })
+    expect(PACKAGE.exports['./service']).toEqual({
+      types: './lib/types/conductor/conductor.service.d.ts',
+      default: './lib/conductor/conductor.service.js',
+    })
     expect(PACKAGE.exports['./provider-macos']).toEqual({
-      types: './lib/types/providers/macos.d.ts',
-      default: './lib/providers/macos.js',
+      types: './lib/types/binding/binding.macos-provider.d.ts',
+      default: './lib/binding/binding.macos-provider.js',
     })
     expect(PACKAGE.exports['./client']).toEqual({
       types: './lib/types/client/index.d.ts',
@@ -49,8 +53,10 @@ describe('published package layout', () => {
       'cordis.patch.yml',
       'lib/index.js',
       'lib/types/index.d.ts',
-      'lib/providers/macos.js',
-      'lib/types/providers/macos.d.ts',
+      'lib/conductor/conductor.service.js',
+      'lib/types/conductor/conductor.service.d.ts',
+      'lib/binding/binding.macos-provider.js',
+      'lib/types/binding/binding.macos-provider.d.ts',
       'lib/client.js',
       'assets/computer-use-fixture.png',
       'native/macos/bin/dsh-computer-use-helper',

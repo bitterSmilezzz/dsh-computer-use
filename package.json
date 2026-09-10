@@ -30,12 +30,12 @@
       "default": "./lib/index.js"
     },
     "./service": {
-      "types": "./lib/types/service.d.ts",
-      "default": "./lib/service.js"
+      "types": "./lib/types/conductor/conductor.service.d.ts",
+      "default": "./lib/conductor/conductor.service.js"
     },
     "./provider-macos": {
-      "types": "./lib/types/providers/macos.d.ts",
-      "default": "./lib/providers/macos.js"
+      "types": "./lib/types/binding/binding.macos-provider.d.ts",
+      "default": "./lib/binding/binding.macos-provider.js"
     },
     "./client": {
       "types": "./lib/types/client/index.d.ts",
@@ -61,7 +61,7 @@
   "scripts": {
     "native:build": "node scripts/build-native.mjs",
     "check:native": "node scripts/check-native.mjs",
-    "build": "pnpm run native:build && tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/build-client.mjs",
+    "build": "pnpm run native:build && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsdown",
     "prepack": "pnpm run build",
     "test": "pnpm run build && vitest run tests",
     "test:model": "node scripts/model-e2e.mjs",
@@ -104,12 +104,13 @@
     }
   },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-api-remotes": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-brand": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.1",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-client-ui-settings": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-host-webserver": "^0.1.5-rc.1",
@@ -122,9 +123,8 @@
     "@deepseek-ai/dsh-system-prompt": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-user-approval": "^0.1.5-rc.1",
-    "@deepseek-ai/cordis": "^4.0.1",
-    "react": "^18.2.0",
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-host-webserver": {
@@ -135,6 +135,7 @@
     "@types/node": "^22.20.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.0",
+    "tsdown": "^0.22.14",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },

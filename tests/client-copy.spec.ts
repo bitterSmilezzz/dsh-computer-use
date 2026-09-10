@@ -6,8 +6,10 @@ import { describe, expect, it } from 'vitest'
 const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 
 describe('Computer Use settings copy and hierarchy', () => {
+  // The browser half is multi-file: the localized copy and the numeric bound
+  // helper live in their own client modules, so the checks below read those.
   it('rejects cursor values outside host bounds with localized copy', async () => {
-    const source = await readFile(join(ROOT, 'src/client/index.tsx'), 'utf8')
+    const source = await readFile(join(ROOT, 'src/client/guard.bounds.ts'), 'utf8')
     expect(source).toContain('export function integerInRange')
     const match = source.match(/export function integerInRange[\s\S]*?\{([\s\S]*?)\n\}/u)
     expect(match).not.toBeNull()
@@ -28,7 +30,7 @@ describe('Computer Use settings copy and hierarchy', () => {
   })
 
   it('keeps the common flow before advanced settings and diagnostics', async () => {
-    const source = await readFile(join(ROOT, 'src/client/index.tsx'), 'utf8')
+    const source = await readFile(join(ROOT, 'src/client/view.section.tsx'), 'utf8')
     const privacy = source.indexOf("<h3>{t('privacy')}</h3>")
     const access = source.indexOf("<h3>{t('access')}</h3>")
     const save = source.indexOf("state.action === 'save'")

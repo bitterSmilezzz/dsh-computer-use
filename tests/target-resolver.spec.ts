@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { BackendElement, BackendObservation } from '../src/backend.ts'
+import type { BackendElement, BackendObservation } from '../src/optics/optics.sighting.ts'
+import { TARGET_RESOLUTION_CONFIDENCE } from '../src/optics/optics.fingerprint.ts'
 import {
-  TARGET_RESOLUTION_CONFIDENCE,
   describeComputerTarget,
   resolveComputerTarget,
-} from '../src/target-resolver.ts'
+} from '../src/optics/optics.locate.ts'
 import { backendObservation } from './helpers.ts'
 
 function target(overrides: Partial<BackendElement> = {}): BackendElement {

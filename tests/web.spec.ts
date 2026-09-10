@@ -2,8 +2,8 @@ import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
-import { COMPUTER_USE_SETTINGS_NAMESPACE } from '../src/config.ts'
-import { ComputerUseWebBackend } from '../src/web.ts'
+import { COMPUTER_USE_SETTINGS_NAMESPACE } from '../src/tuning/tuning.schema.ts'
+import { ComputerUseWebBackend } from '../src/panel/panel.snapshot.ts'
 
 interface RunningServer {
   baseUrl: string

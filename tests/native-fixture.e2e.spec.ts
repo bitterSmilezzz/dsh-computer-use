@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { describe, expect, it } from 'vitest'
-import type { BackendObservation } from '../src/backend.ts'
-import { describeComputerTarget, resolveComputerTarget } from '../src/target-resolver.ts'
+import type { BackendObservation } from '../src/optics/optics.sighting.ts'
+import { describeComputerTarget, resolveComputerTarget } from '../src/optics/optics.locate.ts'
 import { temporaryDirectory } from './helpers.ts'
 
 const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))

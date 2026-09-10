@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import ComputerUseDefault, { ComputerUseBundle, installComputerUseConsumer } from '../src/index.ts'
-import { COMPUTER_USE_ACTIVATE } from '../src/exposure.ts'
-import { MacOSComputerUseProvider } from '../src/providers/macos.ts'
+import ComputerUseDefault, { ComputerUseBundle, installComputerUseConsumer } from '../src/conductor/conductor.bundle.ts'
+import { COMPUTER_USE_ACTIVATE } from '../src/playbook/playbook.guard.ts'
+import { MacOSComputerUseProvider } from '../src/binding/binding.macos-provider.ts'
 
 describe('Cordis registration contracts', () => {
   it('exports one aggregate class plugin with provider and consumer injections', () => {

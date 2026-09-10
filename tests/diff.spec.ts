@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { diffElements } from '../src/diff.ts'
-import type { ComputerElement } from '../src/types.ts'
+import { diffElements } from '../src/optics/optics.drift.ts'
+import type { ComputerElement } from '../src/charter/charter.index.ts'
 
 function element(index: number, overrides: Partial<ComputerElement> = {}): ComputerElement {
   return { index, role: 'AXButton', title: 'Apply', actions: ['AXPress'], ...overrides }

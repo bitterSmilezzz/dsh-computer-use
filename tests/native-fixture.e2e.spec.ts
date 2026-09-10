@@ -12,7 +12,7 @@ const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const HELPER = join(ROOT, 'native', 'macos', 'bin', 'dsh-computer-use-helper')
 const FIXTURE_APP = join(ROOT, 'native', 'macos', 'fixture', 'DSHComputerUseFixture.app')
 const INPUT_MONITOR = join(ROOT, 'native', 'macos', 'fixture', 'dsh-computer-use-input-monitor')
-const BUNDLE_ID = 'io.anionex.dsh-computer-use-fixture'
+const BUNDLE_ID = 'io.bittersmilezzz.dsh-computer-use-fixture'
 const LIMITS = { maxNodes: 1000, maxDepth: 20, maxTextBytes: 128000 }
 const OBSERVATION_QUIET_MS = 150
 

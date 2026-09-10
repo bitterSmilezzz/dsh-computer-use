@@ -168,7 +168,7 @@ describe('macOS cursor visualization', () => {
     }
     const request = {
       action: { kind: 'drag', observationId: 'observation', fromX: 100, fromY: 40, toX: 400, toY: 340 },
-      app: { bundleId: 'io.anionex.fixture', pid: target.targetPid, name: 'Fixture' },
+      app: { bundleId: 'io.bittersmilezzz.fixture', pid: target.targetPid, name: 'Fixture' },
       expectedStateHash: 'state-before-drag',
       interaction: config.interaction,
     } as unknown as BackendActionRequest

@@ -127,7 +127,7 @@ async function buildFixture() {
 <plist version="1.0"><dict>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleExecutable</key><string>DSHComputerUseFixture</string>
-<key>CFBundleIdentifier</key><string>io.anionex.dsh-computer-use-fixture</string>
+<key>CFBundleIdentifier</key><string>io.bittersmilezzz.dsh-computer-use-fixture</string>
 <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
 <key>CFBundleName</key><string>DSH Computer Use Fixture</string>
 <key>CFBundlePackageType</key><string>APPL</string>
@@ -151,7 +151,7 @@ async function buildFixture() {
   await run('codesign', ['--force', '--sign', '-', '--timestamp=none', MONITOR_OUTPUT])
   return {
     path: FIXTURE_APP,
-    bundleId: 'io.anionex.dsh-computer-use-fixture',
+    bundleId: 'io.bittersmilezzz.dsh-computer-use-fixture',
     executable: basename(executable),
     monitor: MONITOR_OUTPUT,
   }

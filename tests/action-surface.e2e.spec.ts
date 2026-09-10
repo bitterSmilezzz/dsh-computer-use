@@ -22,7 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const HELPER = join(ROOT, 'native', 'macos', 'bin', 'dsh-computer-use-helper')
 const FIXTURE_APP = join(ROOT, 'native', 'macos', 'fixture', 'DSHComputerUseFixture.app')
-const FIXTURE_BUNDLE = 'io.anionex.dsh-computer-use-fixture'
+const FIXTURE_BUNDLE = 'io.bittersmilezzz.dsh-computer-use-fixture'
 const LIMITS = { maxNodes: 1000, maxDepth: 20, maxTextBytes: 128000 }
 const TARGETED = { focusPolicy: 'preserve', keyboardPolicy: 'preserve', pointerInputPolicy: 'targeted' } as const
 

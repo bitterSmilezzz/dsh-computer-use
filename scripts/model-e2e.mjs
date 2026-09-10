@@ -12,7 +12,7 @@ import { findComputerClickEvidence } from './session-transcript.mjs'
 const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const HELPER = join(ROOT, 'native', 'macos', 'bin', 'dsh-computer-use-helper')
 const FIXTURE_APP = join(ROOT, 'native', 'macos', 'fixture', 'DSHComputerUseFixture.app')
-const BUNDLE_ID = 'io.anionex.dsh-computer-use-fixture'
+const BUNDLE_ID = 'io.bittersmilezzz.dsh-computer-use-fixture'
 const RESULTS = []
 const TEMPORARY = []
 
@@ -192,7 +192,7 @@ async function realModelWorkflow() {
     ['--profile', 'headless', '--dump-config'],
     { env: { DSH_HOME: home }, timeoutMs: 60_000 },
   )
-  if (!dump.stdout.includes("name: '@anionex/dsh-computer-use'")) {
+  if (!dump.stdout.includes("name: '@bittersmilezzz/dsh-computer-use'")) {
     throw new Error('real-model Profile does not mount dsh-computer-use')
   }
 
@@ -288,7 +288,7 @@ try {
 
 const report = {
   schemaVersion: 1,
-  project: '@anionex/dsh-computer-use',
+  project: '@bittersmilezzz/dsh-computer-use',
   lane: 'real-model',
   ok: failure === undefined && cleanupFailure === undefined,
   failure: failure ?? null,

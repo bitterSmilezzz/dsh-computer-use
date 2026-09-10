@@ -79,13 +79,13 @@ Fixture 会记录每次 `applicationDidBecomeActive` 回调。独立 native moni
 直接从 npm 一键安装 Web 与 Headless Bundle：
 
 > [!IMPORTANT]
-> 已发布的包名为 `@anionex/dsh-computer-use`。旧名
+> 包名为 `@bittersmilezzz/dsh-computer-use`。旧名
 > `@dsh-external/dsh-computer-use` 从未发布到 npm，不可安装；
 > 安装前请先更新旧的 profile 或 manifest 引用。
 
 ```sh
-dsh plugin --profile web add @anionex/dsh-computer-use
-dsh plugin --profile headless add @anionex/dsh-computer-use
+dsh plugin --profile web add @bittersmilezzz/dsh-computer-use
+dsh plugin --profile headless add @bittersmilezzz/dsh-computer-use
 
 dsh --profile web --dump-config | grep computer-use
 dsh --profile headless --dump-config | grep computer-use
@@ -269,7 +269,7 @@ Settings 更新只有在校验与健康检查通过后才替换当前 provider g
 - 目标应用可能因接受动作而自行改变 activation 或 focus。
 - 软件包按请求捕获离散 observation，不提供实时桌面流。
 - 浏览器工作应继续使用 browser automation，因为 DOM/CDP 状态更窄、更精确。
-- 公共 npm 包以 `@anionex/dsh-computer-use` 安装，可同时挂载到 Web 与 Headless Profile。
+- 包以 `@bittersmilezzz/dsh-computer-use` 安装，可同时挂载到 Web 与 Headless Profile。
 
 ## 开发与发布验收
 
@@ -304,8 +304,8 @@ pnpm run validate:release
 ## 移除
 
 ```sh
-dsh plugin --profile web remove @anionex/dsh-computer-use
-dsh plugin --profile headless remove @anionex/dsh-computer-use
+dsh plugin --profile web remove @bittersmilezzz/dsh-computer-use
+dsh plugin --profile headless remove @bittersmilezzz/dsh-computer-use
 ```
 
 移除或禁用 Bundle 会注销 Skill 与 Tool、取消 helper 工作、释放进程内 Agent observation、turn control grant 与 confirmation、关闭 storage-domain handle，并移除 Web contribution。已经生成的截图文件和插件自有的 `computer_use_state` sidecar 会保留，供用户显式清理。
@@ -321,7 +321,7 @@ dsh plugin --profile headless remove @anionex/dsh-computer-use
 
 ## 关于
 
-DSH Computer Use 由 [anionex](https://anionex.me/) 维护。如果你想了解我后续的更多工作，欢迎在 [X](https://x.com/anion_ex) 或 [GitHub](https://github.com/Anionex) 关注我。
+DSH Computer Use 由 [bitterSmilezzz](https://github.com/bitterSmilezzz) 维护。
 
 ## 许可证
 

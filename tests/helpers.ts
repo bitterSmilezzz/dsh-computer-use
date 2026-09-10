@@ -23,7 +23,7 @@ export async function temporaryDirectory(prefix: string): Promise<{ path: string
 }
 
 export const FIXTURE_APP: ComputerAppIdentity = {
-  bundleId: 'io.anionex.dsh-computer-use-fixture',
+  bundleId: 'io.bittersmilezzz.dsh-computer-use-fixture',
   pid: 4242,
   name: 'DSH Computer Use Fixture',
 }

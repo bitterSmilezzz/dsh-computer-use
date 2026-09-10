@@ -12,7 +12,7 @@ import { COMPUTER_USE_ACTIVATE } from '../src/exposure.ts'
 const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const HELPER = join(ROOT, 'native', 'macos', 'bin', 'dsh-computer-use-helper')
 const FIXTURE_APP = join(ROOT, 'native', 'macos', 'fixture', 'DSHComputerUseFixture.app')
-const BUNDLE_ID = 'io.anionex.dsh-computer-use-fixture'
+const BUNDLE_ID = 'io.bittersmilezzz.dsh-computer-use-fixture'
 
 interface ScriptedRequest {
   body: unknown
@@ -370,7 +370,7 @@ describe.skipIf(!enabled)('clean Computer Use Profile installation', () => {
       const dump = await run('dsh', ['--profile', profile, '--dump-config'], { env: { DSH_HOME: home } })
       expect(dump.code, dump.stderr).toBe(0)
       expect(dump.stdout).toContain('- id: computer-use')
-      expect(dump.stdout).toContain("name: '@anionex/dsh-computer-use'")
+      expect(dump.stdout).toContain("name: '@bittersmilezzz/dsh-computer-use'")
       expect(dump.stdout).toContain('focusPolicy: preserve')
       expect(dump.stdout).toContain('keyboardPolicy: activate')
       expect(dump.stdout).toContain('pointerInputPolicy: targeted')
@@ -532,10 +532,10 @@ describe.skipIf(!enabled)('clean Computer Use Profile installation', () => {
     }
 
     for (const profile of ['headless', 'web']) {
-      const remove = await run('dsh', ['plugin', '--profile', profile, 'remove', '@anionex/dsh-computer-use'], { env: { DSH_HOME: home } })
+      const remove = await run('dsh', ['plugin', '--profile', profile, 'remove', '@bittersmilezzz/dsh-computer-use'], { env: { DSH_HOME: home } })
       expect(remove.code, remove.stderr).toBe(0)
       const dump = await run('dsh', ['--profile', profile, '--dump-config'], { env: { DSH_HOME: home } })
-      expect(dump.stdout).not.toContain('@anionex/dsh-computer-use')
+      expect(dump.stdout).not.toContain('@bittersmilezzz/dsh-computer-use')
     }
 
     await access(tarball)

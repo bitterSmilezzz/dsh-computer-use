@@ -10,6 +10,9 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // The settings-document event and the connection-reset hook arrive through these services.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// `connection/reset` is declared by the connection plugin's client half; the
+// type-only import pulls that augmentation into this program.
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-settings/types'
@@ -43,7 +46,7 @@ export function apply(ctx: ClientContext): void {
   // it, or the connection comes back after a reset. Both paths re-read, and
   // `refreshIfLoaded` keeps that a no-op while nothing is on screen yet.
   ctx.effect(() => {
-    const stopDocument = ctx.remote.$on('settings/document-updated', namespace => {
+    const stopDocument = ctx.remote.$on('settings/document-updated', (namespace: string) => {
       if (namespace === NS) controller.refreshIfLoaded()
     })
     const stopReset = ctx.on('connection/reset', () => { controller.refreshIfLoaded() })

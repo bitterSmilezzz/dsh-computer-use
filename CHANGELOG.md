@@ -4,6 +4,94 @@ All notable changes to DSH Computer Use are recorded here. The project follows s
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-12
+
+This is the first release under the project's own identity. The package is renamed
+`@anionex/dsh-computer-use` → `@bittersmilezzz/dsh-computer-use` and the source tree is
+fully reorganized and rewritten; no upstream code is carried verbatim beyond the MIT
+license text. The 11 tool names, their parameter and output schemas, the configuration
+keys and defaults, and the Swift↔TypeScript protocol are unchanged, so existing model
+prompts and settings keep working.
+
+### Changed
+
+- **Package identity**: new name `@bittersmilezzz/dsh-computer-use`, version `0.4.0`,
+  own repository and issue tracker. Consumers must reinstall under the new name; a
+  leftover `node_modules/@anionex/` directory after migration can be deleted.
+- **Source layout**: the flat 20-file `src/` tree became 11 domain directories
+  (`charter`, `tuning`, `optics`, `motion`, `custody`, `binding`, `conductor`,
+  `toolbelt`, `playbook`, `panel`, `client`) with `<domain>.<role>.ts` naming. The
+  macOS helper went from one 1246-line Swift file to 14 focused files, and the client
+  from a 795-line single file to 9 files built with `tsdown`.
+- **Helper binary changed**: the rebuilt helper carries a new `helperVersion` and
+  sha256, so macOS may ask for Accessibility and Screen Recording approval again after
+  upgrading.
+- Model-facing tool descriptions and the Chinese UI copy were rewritten.
+
+### Fixed
+
+- **Dark theme readability**: the settings card referenced `--dsw-alias-border-subtle`
+  and `--dsw-alias-fg-muted`, which do not exist in the official token set; the
+  `var()` fallbacks therefore resolved to light-theme literals and text became
+  unreadable in dark mode.
+- **Draft loss on re-check**: clicking "re-check" no longer discards unsaved edits in
+  the settings card.
+- Grants parsing now treats the trailing token as the permission, matching the host's
+  leniency instead of rejecting lines it accepts.
+
+### Added
+
+- **`computer_wait` conditions**: `absent` waits for an element to disappear and
+  `elementValue` waits for a value to appear. An empty condition set fails fast with
+  `COMPUTER_INVALID_ARGUMENT` rather than returning immediately.
+- **`modifiers` for `computer_click` and `computer_drag`**: send modifier flags with
+  the click or drag. When any modifier is held the `AXPress` fast path is skipped so
+  the modifier reaches the application.
+- **`maxWaitMs` setting** (default `30000`, range `100`–`600000`): bounds how long a
+  single wait may block. Values below `maxSettleMs` are raised rather than rejected, so
+  a deployment with a large settle budget still starts.
+- Expanded error-code allowlist surfaced to callers.
+
+### Performance
+
+- **Target resolution memoization** (`WeakMap` index per element set): resolving a
+  locator against 500 elements went from 16.37 ms to 0.33 ms (49×) and against 2000
+  elements from 291 ms to 1.33 ms (218×). This projection runs on the host main thread,
+  so the win also removes the stalls it used to cause in the Web UI and other sessions.
+- **Settle loop**: probes first and then waits with exponential backoff, cutting the
+  helper round-trips for an unchanging screen from 20 frames to 6. Actions reuse the
+  observation they already have, so screenshot-carrying actions capture once instead of
+  twice.
+- Range validation mirrors the host's 13 numeric bounds on the client side, so invalid
+  values are caught before a round-trip.
+
+### Notes
+
+- **Settle semantics**: a frame at `t≈0` can only *nominate* a change; a second frame
+  must confirm it before the change counts as settled. Frames at or beyond `settleMs`
+  settle immediately, as before. This prevents hover rings, focus outlines and busy
+  spinners from being mistaken for lasting effects, and avoids returning a screenshot
+  taken before the repaint. The cost is that the immediate path takes ~252 ms / 2 frames
+  instead of returning in 1 ms.
+- **DSH compatibility**: aligned to DSH `0.1.5-rc.2` (`@deepseek-ai/*` peers declared as
+  `^0.1.5-rc.2` in both `peerDependencies` and `devDependencies`), adapted to the
+  `0.1.2-alpha.2`+ service-API migration, and the deprecated
+  `@deepseek-ai/dsh-client-runtime` name was dropped. Two previously undeclared peer
+  imports (`@deepseek-ai/dsh-util-values`, `@deepseek-ai/dsh-client-connection`) are now
+  declared explicitly.
+
+### Verification
+
+- `pnpm run build` (native helper + both TypeScript programs + client bundle) and
+  `pnpm run check:native` pass; helper sha256 `486deda9…`, arm64 + x86_64,
+  minimum macOS 14.0.
+- Test suite: 99 passed / 15 skipped, plus the GUI spec noted below.
+- **Not covered**: the Swift rewrite has no end-to-end evidence for the real GUI paths.
+  The 15 skipped GUI cases and the 2 `native-fixture.e2e` failures are environment
+  gates — the spec requires its fixture window to be non-frontmost and is
+  foreground-sensitive. An A/B run against pre-refactor commit `6c89def` fails the same
+  2 cases, so the failures predate this release.
+
 ## [0.3.1] - 2026-09-02
 
 ### Fixed

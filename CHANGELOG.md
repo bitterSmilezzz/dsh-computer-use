@@ -4,6 +4,21 @@ All notable changes to DSH Computer Use are recorded here. The project follows s
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-13
+
+### Changed
+
+- **Desktop compatibility**: the client platform modules (`react`,
+  `@deepseek-ai/dsh-client-ui-slots`, `@deepseek-ai/dsh-client-ui-primitives`) are now declared as
+  **optional peers** through `peerDependenciesMeta`. They are supplied at runtime by the DSH client's
+  frozen module table and are not host-shared packages; without the optional marker the Desktop
+  profile validator rejects the plugin with `requires missing …`.
+- **First npm release under the own scope**: the package is published to the npm registry, so it can
+  be installed through the Desktop plugin manager instead of a local path.
+- The native helper version string follows the package version, so the bundled helper binary is
+  rebuilt for this release. Re-approve the helper in System Settings if macOS blocks it after the
+  upgrade.
+
 ## [0.4.0] - 2026-09-12
 
 This is the first release under the project's own identity. The package is renamed

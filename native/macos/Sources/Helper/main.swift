@@ -3,7 +3,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-private let helperVersion = "0.4.0"
+private let helperVersion = "0.4.1"
 
 /// Process entry. Three modes share one binary: the cursor overlay runtime, the
 /// drag helper (which holds a line protocol open across the gesture), and the

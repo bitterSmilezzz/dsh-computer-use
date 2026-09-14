@@ -1,6 +1,6 @@
 {
   "name": "@bittersmilezzz/dsh-computer-use",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Accessibility-first macOS Computer Use capability for DeepSeek Harness with stale-observation protection, app leases, confirmations, screenshots, and Web diagnostics",
   "keywords": [
     "deepseek",
@@ -16,6 +16,10 @@
   },
   "bugs": {
     "url": "https://github.com/bitterSmilezzz/dsh-computer-use/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "type": "module",
   "packageManager": "pnpm@11.20.0",
@@ -131,6 +135,15 @@
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-host-webserver": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   },

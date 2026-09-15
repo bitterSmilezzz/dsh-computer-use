@@ -4,6 +4,13 @@ All notable changes to DSH Computer Use are recorded here. The project follows s
 
 ## [Unreleased]
 
+### Changed
+
+- **DSH alignment**: the `@deepseek-ai/*` dependency line now targets DSH `0.1.6-alpha.1`
+  (declared in both `peerDependencies` and `devDependencies` as `^0.1.6-alpha.1`). Verified on
+  DSH 0.1.6-alpha.1 with dual-program `tsc`, `tsdown`, and the test suite (7 environment gates
+  aside: 6 GUI fixtures and 1 profile install that needs a reachable npm proxy).
+
 ## [0.4.1] - 2026-09-13
 
 ### Changed
